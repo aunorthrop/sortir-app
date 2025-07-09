@@ -1,6 +1,5 @@
 const fileInput = document.getElementById("fileInput");
 const deleteFileBtn = document.getElementById("deleteFileBtn");
-const fileStatus = document.getElementById("fileStatus");
 const downloadLink = document.getElementById("downloadLink");
 const askBtn = document.getElementById("askBtn");
 const questionInput = document.getElementById("questionInput");
@@ -8,25 +7,18 @@ const responseModal = document.getElementById("responseModal");
 const responseText = document.getElementById("responseText");
 const closeModal = document.getElementById("closeModal");
 
-// Load file from localStorage on refresh
-window.onload = () => {
-  const storedFile = localStorage.getItem("uploadedFile");
-  const fileName = localStorage.getItem("fileName");
-  if (storedFile && fileName) {
-    showDownloadLink(fileName, storedFile);
-  }
-};
+let uploadedFile = null;
 
-// Upload handler
+// Upload file
 fileInput.addEventListener("change", () => {
   const file = fileInput.files[0];
   const reader = new FileReader();
 
   reader.onload = function () {
-    const base64Data = reader.result.split(",")[1];
-    localStorage.setItem("uploadedFile", base64Data);
-    localStorage.setItem("fileName", file.name);
-    showDownloadLink(file.name, base64Data);
+    uploadedFile = reader.result.split(",")[1];
+    const blob = b64toBlob(uploadedFile, "application/pdf");
+    const url = URL.createObjectURL(blob);
+    downloadLink.innerHTML = `<a href="${url}" download="${file.name}">Download ${file.name}</a>`;
   };
 
   if (file) {
@@ -36,34 +28,22 @@ fileInput.addEventListener("change", () => {
 
 // Delete file
 deleteFileBtn.addEventListener("click", () => {
-  localStorage.removeItem("uploadedFile");
-  localStorage.removeItem("fileName");
+  uploadedFile = null;
   downloadLink.innerHTML = "";
-  fileStatus.innerText = "No file uploaded.";
 });
-
-// Show link
-function showDownloadLink(name, data) {
-  const blob = b64toBlob(data, "application/pdf");
-  const url = URL.createObjectURL(blob);
-  downloadLink.innerHTML = `<a href="${url}" download="${name}">Download ${name}</a>`;
-  fileStatus.innerText = `Loaded: ${name}`;
-}
 
 // Ask question
 askBtn.addEventListener("click", async () => {
   const question = questionInput.value.trim();
-  const file = localStorage.getItem("uploadedFile");
-  const fileName = localStorage.getItem("fileName") || "document.pdf";
 
-  if (!question || !file) return;
+  if (!question || !uploadedFile) return;
 
   const response = await fetch("/ask", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      fileData: file,
-      fileName: fileName,
+      fileData: uploadedFile,
+      fileName: "uploaded.pdf",
       question: question,
     }),
   });
