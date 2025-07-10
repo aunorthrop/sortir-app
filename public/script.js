@@ -1,85 +1,92 @@
-async function fetchFiles() {
-  const res = await fetch("/files");
-  const files = await res.json();
-  localStorage.setItem("storedFiles", JSON.stringify(files));
-  displayFiles(files);
-}
+document.addEventListener("DOMContentLoaded", () => {
+  const uploadForm = document.getElementById("uploadForm");
+  const fileInput = document.getElementById("fileInput");
+  const fileListContainer = document.getElementById("fileListContainer");
+  const askForm = document.getElementById("askForm");
+  const questionInput = document.getElementById("questionInput");
+  const answerBox = document.getElementById("answerBox");
+  const loadingIndicator = document.getElementById("loadingIndicator");
 
-function displayFiles(files) {
-  const list = document.getElementById("fileList");
-  list.innerHTML = "";
+  function fetchFiles() {
+    fetch("/files")
+      .then((res) => res.json())
+      .then((files) => displayFiles(files))
+      .catch((err) => console.error("Error fetching files:", err));
+  }
 
-  files.forEach((file) => {
-    const li = document.createElement("li");
-    li.textContent = file;
+  function displayFiles(files) {
+    fileListContainer.innerHTML = "";
+    files.forEach((file) => {
+      const item = document.createElement("div");
+      item.className = "file-item";
 
-    const delBtn = document.createElement("button");
-    delBtn.textContent = "Delete";
-    delBtn.className = "delete-button";
-    delBtn.onclick = () => deleteFile(file);
+      const nameSpan = document.createElement("span");
+      nameSpan.className = "file-name-display";
+      nameSpan.textContent = file;
 
-    li.appendChild(delBtn);
-    list.appendChild(li);
-  });
-}
+      const deleteBtn = document.createElement("button");
+      deleteBtn.className = "delete-button";
+      deleteBtn.textContent = "Delete";
+      deleteBtn.onclick = () => {
+        fetch(`/delete/${file}`, { method: "DELETE" })
+          .then(() => fetchFiles())
+          .catch((err) => console.error("Error deleting file:", err));
+      };
 
-async function uploadFile() {
-  const input = document.getElementById("fileInput");
-  const file = input.files[0];
-  if (!file) return alert("Please select a file.");
+      item.appendChild(nameSpan);
+      item.appendChild(deleteBtn);
+      fileListContainer.appendChild(item);
+    });
+  }
 
-  const formData = new FormData();
-  formData.append("file", file);
+  uploadForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const file = fileInput.files[0];
+    if (!file) return alert("Please select a file.");
+    const formData = new FormData();
+    formData.append("file", file);
 
-  try {
-    const res = await fetch("/upload", {
+    fetch("/upload", {
       method: "POST",
       body: formData,
-    });
-    const result = await res.json();
-    if (result.success) {
-      fetchFiles();
-      input.value = "";
-    } else {
-      alert(result.error || "Upload failed");
-    }
-  } catch (err) {
-    alert("Upload error");
-    console.error(err);
-  }
-}
-
-async function deleteFile(filename) {
-  await fetch(`/delete/${filename}`, { method: "DELETE" });
-  fetchFiles();
-}
-
-async function askSortir() {
-  const question = document.getElementById("questionInput").value;
-  if (!question) return;
-
-  const res = await fetch("/ask", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question }),
+    })
+      .then((res) => res.json())
+      .then((result) => {
+        if (result.success) {
+          fetchFiles();
+          fileInput.value = "";
+        } else {
+          alert(result.error || "Upload failed");
+        }
+      })
+      .catch((err) => {
+        console.error("Upload error:", err);
+        alert("Upload failed");
+      });
   });
 
-  const data = await res.json();
-  document.getElementById("response").textContent = data.answer || data.error || "No response.";
-}
+  askForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const question = questionInput.value.trim();
+    if (!question) return;
+    loadingIndicator.style.display = "inline";
+    fetch("/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        answerBox.textContent = data.answer || data.error || "No response.";
+      })
+      .catch((err) => {
+        console.error("Ask error:", err);
+        answerBox.textContent = "Something went wrong.";
+      })
+      .finally(() => {
+        loadingIndicator.style.display = "none";
+      });
+  });
 
-window.onload = () => {
-  const cached = localStorage.getItem("storedFiles");
-  if (cached) {
-    try {
-      displayFiles(JSON.parse(cached));
-    } catch (e) {
-      console.error("Invalid localStorage data");
-    }
-  }
   fetchFiles();
-};
-
-window.onerror = function (msg, src, lineno, colno, err) {
-  console.error("JS Error:", msg, "at", src + ":" + lineno);
-};
+});
