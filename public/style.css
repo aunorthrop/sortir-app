@@ -1,161 +1,38 @@
 body {
-  font-family: sans-serif;
-  margin: 0;
-  background-color: #282c34; /* Dark background color */
-  color: #f8f8f2; /* Light text color */
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 20px;
+  background-color: #1e1e2f;
+  font-family: Arial, sans-serif;
+  color: white;
+  text-align: center;
+  padding: 2rem;
 }
 
-header {
-  display: flex;
-  justify-content: center; /* Center the logo horizontally */
-  margin-bottom: 20px; /* Adjust margin below the logo */
-  width: 100%; /* Ensure header takes full width */
-}
-
-.header-logo {
-  height: 360px; /* Doubled the previous height of 180px (180 * 2 = 360) */
-  filter: drop-shadow(0 0 5px rgba(0, 255, 255, 0.7)); /* Subtle glow for the logo */
-}
-
-form {
-  margin-bottom: 20px;
-  background-color: #3a3f4c; /* Slightly lighter background for forms */
-  padding: 20px;
+.container {
+  max-width: 600px;
+  margin: auto;
+  background-color: #2e2e3e;
+  padding: 2rem;
   border-radius: 8px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-  width: 100%;
-  max-width: 400px; /* Limit form width */
-  box-sizing: border-box; /* Include padding in width */
+}
+
+button {
+  background-color: #00ffff;
+  color: black;
+  padding: 0.5rem 1rem;
+  border: none;
+  margin-top: 1rem;
+  cursor: pointer;
 }
 
 input[type="file"],
 input[type="text"] {
-  width: calc(100% - 20px); /* Adjust width for padding */
-  padding: 10px;
-  margin-bottom: 15px;
-  border: 1px solid #00ffff; /* Cyan border */
-  border-radius: 5px;
-  background-color: #4b5262; /* Input background */
-  color: #f8f8f2; /* Input text color */
-  box-sizing: border-box;
-}
-
-input[type="text"]::placeholder {
-  color: #bbb;
-}
-
-button[type="submit"] {
-  background-color: #00ffff; /* Cyan button */
-  color: #282c34; /* Dark text for button */
-  padding: 10px 15px;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 1em;
-  transition: background-color 0.3s ease;
-}
-
-button[type="submit"]:hover {
-  background-color: #00ccff; /* Slightly darker cyan on hover */
-}
-
-#answerBox {
-  margin-top: 20px;
-  padding: 15px;
-  background-color: #3a3f4c;
-  border: 1px solid #00ffff;
-  border-radius: 8px;
-  min-height: 50px;
+  margin-top: 1rem;
+  padding: 0.5rem;
   width: 100%;
-  max-width: 400px;
-  box-sizing: border-box;
-  color: #f8f8f2;
 }
 
-/* Specific styling for the file input to make it look like "Choose File" button */
-#fileInput {
-  display: none; /* Hide the default file input */
-}
-
-/* This is the styled label that acts as the "Choose File" button */
-.custom-file-upload {
-  display: block; /* Make it a block element to take full width */
-  background-color: #00ffff; /* Cyan background */
-  color: #282c34; /* Dark text for the button */
-  padding: 10px 15px;
-  border-radius: 5px;
-  cursor: pointer;
-  text-align: center; /* Center the text */
-  margin-bottom: 15px; /* Space below the button */
-  transition: background-color 0.3s ease; /* Smooth transition on hover */
-}
-
-.custom-file-upload:hover {
-  background-color: #00ccff; /* Slightly darker cyan on hover */
-}
-
-/* File list display styling */
-#fileListContainer {
-  margin-bottom: 20px;
-  background-color: #3a3f4c;
-  padding: 15px;
-  border-radius: 8px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-  width: 100%;
-  max-width: 400px;
-  box-sizing: border-box;
-  color: #f8f8f2;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.file-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 0;
-  border-bottom: 1px dashed #555;
-}
-
-.file-item:last-child {
-  border-bottom: none;
-}
-
-.file-name-display {
-  flex-grow: 1;
-  margin-right: 10px;
-  word-break: break-all; /* Ensures long file names wrap */
-}
-
-.delete-button {
-  background-color: #ff4d4d; /* Red for delete */
-  color: white;
-  padding: 5px 10px;
-  border: none;
+#fileList div {
+  background-color: #444;
+  padding: 0.5rem;
+  margin-top: 0.5rem;
   border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9em;
-  transition: background-color 0.3s ease;
-}
-
-.delete-button:hover {
-  background-color: #cc0000;
-}
-
-/* Loading indicator styling */
-.loading-indicator {
-  margin-left: 10px;
-  font-style: italic;
-  color: #00ffff;
-  animation: blink 1s infinite alternate; /* Simple blinking animation */
-}
-
-@keyframes blink {
-  from { opacity: 1; }
-  to { opacity: 0.5; }
 }
