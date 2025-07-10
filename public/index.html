@@ -9,23 +9,20 @@
 <body>
   <div class="logo-container">
     <img src="logo.png" alt="Sortir Logo" class="logo" />
-    <h1>Sortir</h1>
-    <p class="tagline">Ask questions about your internal documents</p>
   </div>
 
-  <div class="upload-container">
-    <h2>Your Vault</h2>
+  <div class="upload-box">
     <input type="file" id="fileInput" />
     <button onclick="uploadFile()">Upload PDF</button>
     <ul id="fileList"></ul>
   </div>
 
-  <div class="ask-section">
-    <input type="text" id="questionInput" placeholder="Tell me about my documents" />
+  <div class="ask-box">
+    <input type="text" id="questionInput" placeholder="Ask something..." />
     <button onclick="askSortir()">Ask Sortir</button>
   </div>
 
-  <div class="response-box" id="response"></div>
+  <div id="responseText" class="response-box"></div>
 
   <script src="script.js"></script>
 </body>
