@@ -1,46 +1,32 @@
 require('dotenv').config();
-
-if (!process.env.OPENAI_API_KEY) {
-  console.error("❌ OPENAI_API_KEY is not set. Check Render Environment tab.");
-  process.exit(1);
-}
-
 const express = require('express');
 const multer = require('multer');
 const fs = require('fs');
 const pdfParse = require('pdf-parse');
 const cors = require('cors');
-const { OpenAI } = require('openai');
-
-console.log("🟢 Server is starting...");
+const OpenAI = require('openai'); // Correct constructor for v3.2.1+
 
 const app = express();
-const upload = multer({ dest: 'uploads/' });
 const port = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-let storedFiles = [];
+const upload = multer({ dest: 'uploads/' });
 
-app.get('/', (req, res) => {
-  res.sendFile(__dirname + '/public/index.html');
+let documents = [];
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
 });
 
+// Upload PDF
 app.post('/upload', upload.single('file'), async (req, res) => {
   try {
-    const file = req.file;
-    const dataBuffer = await fs.promises.readFile(file.path);
-    const parsedData = await pdfParse(dataBuffer);
-
-    storedFiles.push({
-      name: file.originalname,
-      content: parsedData.text
-    });
-
-    fs.unlink(file.path, () => {});
+    const dataBuffer = fs.readFileSync(req.file.path);
+    const pdfData = await pdfParse(dataBuffer);
+    documents.push({ name: req.file.originalname, text: pdfData.text });
     res.status(200).json({ message: 'File uploaded and parsed successfully.' });
   } catch (error) {
     console.error('Upload error:', error);
@@ -48,31 +34,40 @@ app.post('/upload', upload.single('file'), async (req, res) => {
   }
 });
 
-app.post('/delete', (req, res) => {
-  const { fileName } = req.body;
-  storedFiles = storedFiles.filter(file => file.name !== fileName);
-  res.status(200).json({ message: 'File deleted successfully.' });
+// List documents
+app.get('/documents', (req, res) => {
+  const names = documents.map((doc) => doc.name);
+  res.status(200).json({ documents: names });
 });
 
+// Delete document
+app.post('/delete', (req, res) => {
+  const { name } = req.body;
+  documents = documents.filter(doc => doc.name !== name);
+  res.status(200).json({ message: 'Document deleted.' });
+});
+
+// Ask question
 app.post('/ask', async (req, res) => {
+  const { question } = req.body;
+  if (documents.length === 0) {
+    return res.status(400).json({ message: 'No documents uploaded.' });
+  }
+
+  const combinedText = documents.map(doc => doc.text).join('\n\n');
+  const prompt = `You are a helpful assistant. Use the following documents to answer the question:\n\n${combinedText}\n\nQuestion: ${question}\nAnswer:`;
+
   try {
-    const question = req.body.question;
-    const fullContext = storedFiles.map(f => `${f.name}:\n${f.content}`).join('\n\n');
-
-    const prompt = `You are Sortir, a helpful assistant for small business documents.\n\nContext:\n${fullContext}\n\nQuestion: ${question}\n\nAnswer:`;
-
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4',
+      model: 'gpt-3.5-turbo',
       messages: [{ role: 'user', content: prompt }],
-      temperature: 0.2,
-      max_tokens: 500
     });
 
     const answer = completion.choices[0].message.content;
     res.json({ answer });
   } catch (error) {
     console.error('Ask error:', error);
-    res.status(500).json({ message: 'Failed to get a response from Sortir.' });
+    res.status(500).json({ message: 'Failed to get a response from OpenAI.' });
   }
 });
 
