@@ -1,66 +1,54 @@
-const fileInput = document.getElementById("fileInput");
-const fileList = document.getElementById("fileList");
-let uploadedFiles = [];
+async function uploadPDF() {
+  const input = document.getElementById('pdfInput');
+  const formData = new FormData();
+  formData.append('file', input.files[0]);
 
-function uploadFile() {
-  const file = fileInput.files[0];
-  if (!file) return;
+  await fetch('/upload', {
+    method: 'POST',
+    body: formData,
+  });
 
-  const reader = new FileReader();
-  reader.onload = function (e) {
-    const base64 = e.target.result.split(',')[1];
-    const fileData = {
-      name: file.name,
-      content: base64
-    };
-
-    fetch('/upload', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(fileData)
-    })
-    .then(res => res.json())
-    .then(data => {
-      uploadedFiles.push(file.name);
-      updateFileList();
-    });
-  };
-  reader.readAsDataURL(file);
+  input.value = '';
+  loadFiles();
 }
 
-function updateFileList() {
-  fileList.innerHTML = '';
-  uploadedFiles.forEach(name => {
+async function loadFiles() {
+  const res = await fetch('/files');
+  const files = await res.json();
+
+  const list = document.getElementById('fileList');
+  list.innerHTML = '';
+  files.forEach(name => {
     const div = document.createElement('div');
     div.textContent = name;
-    const delBtn = document.createElement('button');
-    delBtn.textContent = 'Delete';
-    delBtn.onclick = () => deleteFile(name);
-    div.appendChild(delBtn);
-    fileList.appendChild(div);
+
+    const del = document.createElement('button');
+    del.textContent = 'Delete';
+    del.onclick = async () => {
+      await fetch('/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      loadFiles();
+    };
+
+    div.appendChild(del);
+    list.appendChild(div);
   });
 }
 
-function deleteFile(name) {
-  fetch('/delete', {
+async function askSortir() {
+  const question = document.getElementById('question').value;
+
+  const res = await fetch('/ask', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name })
-  }).then(() => {
-    uploadedFiles = uploadedFiles.filter(f => f !== name);
-    updateFileList();
+    body: JSON.stringify({ prompt: question }),
   });
+
+  const answer = await res.text();
+  document.getElementById('response').textContent = answer;
 }
 
-function askSortir() {
-  const userPrompt = document.getElementById("userPrompt").value;
-  fetch('/ask', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt: userPrompt })
-  })
-  .then(res => res.json())
-  .then(data => {
-    document.getElementById("responseContainer").innerText = data.response;
-  });
-}
+window.onload = loadFiles;
