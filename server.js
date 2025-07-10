@@ -1,4 +1,10 @@
 require('dotenv').config();
+
+if (!process.env.OPENAI_API_KEY) {
+  console.error("❌ OPENAI_API_KEY is not set. Check Render Environment tab.");
+  process.exit(1);
+}
+
 const express = require('express');
 const multer = require('multer');
 const fs = require('fs');
