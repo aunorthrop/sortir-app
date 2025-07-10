@@ -1,77 +1,79 @@
-const express = require("express");
-const multer = require("multer");
-const pdf = require("pdf-parse");
-const { OpenAI } = require("openai");
-const path = require("path");
+require('dotenv').config();
+const express = require('express');
+const multer = require('multer');
+const fs = require('fs');
+const pdfParse = require('pdf-parse');
+const cors = require('cors');
+const { OpenAI } = require('openai');
 
 const app = express();
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({ dest: 'uploads/' });
+const port = process.env.PORT || 3000;
+
+app.use(cors());
+app.use(express.json());
+app.use(express.static('public'));
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-app.use(express.static("public"));
-app.use(express.json());
+let storedFiles = []; // persists across uploads
 
-let documents = []; // Store { fileName, text }
+// Serve the main page
+app.get('/', (req, res) => {
+  res.sendFile(__dirname + '/public/index.html');
+});
 
-app.post("/upload", upload.single("file"), async (req, res) => {
+// Upload endpoint
+app.post('/upload', upload.single('file'), async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ error: "No file uploaded." });
+    const file = req.file;
+    const dataBuffer = await fs.promises.readFile(file.path);
+    const parsedData = await pdfParse(dataBuffer);
 
-    const data = await pdf(req.file.buffer);
-    documents.push({ fileName: req.file.originalname, text: data.text });
+    storedFiles.push({
+      name: file.originalname,
+      content: parsedData.text
+    });
 
-    res.json({ message: "File uploaded successfully", fileName: req.file.originalname });
+    fs.unlink(file.path, () => {}); // clean up temp file
+    res.status(200).json({ message: 'File uploaded and parsed successfully.' });
   } catch (error) {
-    console.error("Error extracting text:", error);
-    res.status(500).json({ error: "Failed to extract text from PDF" });
+    console.error('Error uploading file:', error);
+    res.status(500).json({ message: 'Failed to extract text from PDF.' });
   }
 });
 
-app.post("/ask", async (req, res) => {
-  const { question } = req.body;
+// Delete file endpoint
+app.post('/delete', (req, res) => {
+  const { fileName } = req.body;
+  storedFiles = storedFiles.filter(file => file.name !== fileName);
+  res.status(200).json({ message: 'File deleted successfully.' });
+});
 
-  if (!question || question.trim() === "")
-    return res.json({ answer: "Please enter a question." });
-
-  if (documents.length === 0)
-    return res.json({ answer: "No documents uploaded yet." });
-
+// Ask endpoint
+app.post('/ask', async (req, res) => {
   try {
-    const combinedText = documents.map(d => `From ${d.fileName}:\n${d.text}`).join("\n\n");
+    const question = req.body.question;
+    const fullContext = storedFiles.map(f => `${f.name}:\n${f.content}`).join('\n\n');
 
-    const chatCompletion = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "system",
-          content: "You are a helpful assistant for answering questions about internal company documents. Use the content provided and say if you can't find the info."
-        },
-        {
-          role: "user",
-          content: `Document content:\n${combinedText}\n\nQuestion: ${question}`
-        }
-      ],
+    const prompt = `You are Sortir, a helpful assistant for small business documents.\n\nContext:\n${fullContext}\n\nQuestion: ${question}\n\nAnswer:`;
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4',
+      messages: [{ role: 'user', content: prompt }],
       temperature: 0.2,
       max_tokens: 500
     });
 
-    const answer = chatCompletion.choices[0].message.content || "No answer returned";
+    const answer = completion.choices[0].message.content;
     res.json({ answer });
   } catch (error) {
-    console.error("OpenAI error:", error);
-    res.status(500).json({ error: "Failed to get answer from AI" });
+    console.error('Error during OpenAI API call:', error);
+    res.status(500).json({ message: 'Failed to get a response from Sortir.' });
   }
 });
 
-app.post("/delete", (req, res) => {
-  try {
-    documents = [];
-    res.json({ message: "All files deleted." });
-  } catch (error) {
-    res.status(500).json({ error: "Delete failed." });
-  }
+// Start server
+app.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
 });
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
