@@ -1,93 +1,108 @@
-const express = require('express');
-const multer = require('multer');
-const fs = require('fs');
-const path = require('path');
-const pdfParse = require('pdf-parse');
-const { Configuration, OpenAIApi } = require('openai');
-const cors = require('cors');
+const express = require("express");
+const fileUpload = require("express-fileupload");
+const fs = require("fs");
+const path = require("path");
+const pdfParse = require("pdf-parse");
+const OpenAI = require("openai");
+const cors = require("cors");
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const upload = multer({ dest: 'uploads/' });
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static("public"));
+app.use(fileUpload());
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const configuration = new Configuration({
-  apiKey: OPENAI_API_KEY,
-});
-const openai = new OpenAIApi(configuration);
+const uploadsDir = path.join(__dirname, "uploads");
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir);
+}
 
-// Store uploaded files' text in memory
-let storedFiles = {};
-
-app.post('/upload', upload.single('pdf'), async (req, res) => {
-  const file = req.file;
-
-  if (!file) {
-    return res.status(400).json({ error: 'No file uploaded' });
+app.post("/upload", async (req, res) => {
+  if (!req.files || !req.files.pdf) {
+    return res.status(400).send("No file uploaded.");
   }
 
-  try {
-    const dataBuffer = fs.readFileSync(file.path);
-    const data = await pdfParse(dataBuffer);
+  const pdfFile = req.files.pdf;
+  const filePath = path.join(uploadsDir, pdfFile.name);
 
-    storedFiles[file.originalname] = data.text;
-    fs.unlinkSync(file.path); // Delete the temp file
-    res.status(200).json({ name: file.originalname });
+  try {
+    await pdfFile.mv(filePath);
+    res.send("File uploaded!");
   } catch (err) {
-    console.error('Error parsing PDF:', err);
-    res.status(500).json({ error: 'Failed to parse PDF' });
+    console.error("Upload error:", err);
+    res.status(500).send("Upload failed.");
   }
 });
 
-app.get('/files', (req, res) => {
-  res.json(Object.keys(storedFiles));
+app.get("/list", (req, res) => {
+  fs.readdir(uploadsDir, (err, files) => {
+    if (err) {
+      console.error("List error:", err);
+      return res.status(500).send("Failed to list files.");
+    }
+    res.json(files);
+  });
 });
 
-app.post('/delete', (req, res) => {
-  const { filename } = req.body;
+app.post("/delete", (req, res) => {
+  const filename = req.body.filename;
+  const filePath = path.join(uploadsDir, filename);
 
-  if (storedFiles[filename]) {
-    delete storedFiles[filename];
-    res.status(200).json({ message: 'Deleted successfully' });
-  } else {
-    res.status(404).json({ error: 'File not found' });
+  fs.unlink(filePath, (err) => {
+    if (err) {
+      console.error("Delete error:", err);
+      return res.status(500).send("Failed to delete file.");
+    }
+    res.send("File deleted!");
+  });
+});
+
+app.post("/ask", async (req, res) => {
+  const question = req.body.question;
+  const files = fs.readdirSync(uploadsDir);
+
+  let combinedText = "";
+
+  for (const file of files) {
+    try {
+      const filePath = path.join(uploadsDir, file);
+      const dataBuffer = fs.readFileSync(filePath);
+      const pdfData = await pdfParse(dataBuffer);
+      combinedText += `\n---\n${file}:\n${pdfData.text}`;
+    } catch (err) {
+      console.error(`Error parsing ${file}:`, err.message);
+    }
   }
-});
-
-app.post('/ask', async (req, res) => {
-  const { question } = req.body;
-  const allContent = Object.entries(storedFiles)
-    .map(([name, text]) => `Document: ${name}\n${text}`)
-    .join('\n\n');
 
   try {
-    const response = await openai.createChatCompletion({
-      model: 'gpt-4',
+    const response = await openai.chat.completions.create({
+      model: "gpt-4",
       messages: [
         {
-          role: 'system',
-          content:
-            'You are a helpful assistant that reads uploaded business documents and answers questions based on their content. Answer clearly and accurately, referring to the relevant document(s) when possible.',
+          role: "system",
+          content: "You are a helpful assistant that answers questions based only on the provided document text.",
         },
         {
-          role: 'user',
-          content: `Here are the uploaded documents:\n\n${allContent}\n\nUser question: ${question}`,
+          role: "user",
+          content: `Here are the documents:\n${combinedText}\n\nQuestion: ${question}`,
         },
       ],
+      temperature: 0.2,
     });
 
-    const answer = response.data.choices[0].message.content.trim();
-    res.json({ answer });
-  } catch (error) {
-    console.error('Error with OpenAI API:', error);
-    res.status(500).json({ error: 'Failed to generate answer' });
+    res.json({ answer: response.choices[0].message.content.trim() });
+  } catch (err) {
+    console.error("OpenAI error:", err);
+    res.status(500).send("Failed to generate answer.");
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
+  console.log(`Server is running on port ${PORT}`);
 });
