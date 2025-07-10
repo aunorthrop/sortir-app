@@ -1,4 +1,3 @@
-console.log("🟢 Server is starting...");
 require('dotenv').config();
 const express = require('express');
 const multer = require('multer');
@@ -6,6 +5,8 @@ const fs = require('fs');
 const pdfParse = require('pdf-parse');
 const cors = require('cors');
 const { OpenAI } = require('openai');
+
+console.log("🟢 Server is starting...");
 
 const app = express();
 const upload = multer({ dest: 'uploads/' });
@@ -16,15 +17,12 @@ app.use(express.json());
 app.use(express.static('public'));
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let storedFiles = [];
 
-let storedFiles = []; // persists across uploads
-
-// Serve the main page
 app.get('/', (req, res) => {
   res.sendFile(__dirname + '/public/index.html');
 });
 
-// Upload endpoint
 app.post('/upload', upload.single('file'), async (req, res) => {
   try {
     const file = req.file;
@@ -36,22 +34,20 @@ app.post('/upload', upload.single('file'), async (req, res) => {
       content: parsedData.text
     });
 
-    fs.unlink(file.path, () => {}); // clean up temp file
+    fs.unlink(file.path, () => {});
     res.status(200).json({ message: 'File uploaded and parsed successfully.' });
   } catch (error) {
-    console.error('Error uploading file:', error);
+    console.error('Upload error:', error);
     res.status(500).json({ message: 'Failed to extract text from PDF.' });
   }
 });
 
-// Delete file endpoint
 app.post('/delete', (req, res) => {
   const { fileName } = req.body;
   storedFiles = storedFiles.filter(file => file.name !== fileName);
   res.status(200).json({ message: 'File deleted successfully.' });
 });
 
-// Ask endpoint
 app.post('/ask', async (req, res) => {
   try {
     const question = req.body.question;
@@ -69,12 +65,11 @@ app.post('/ask', async (req, res) => {
     const answer = completion.choices[0].message.content;
     res.json({ answer });
   } catch (error) {
-    console.error('Error during OpenAI API call:', error);
+    console.error('Ask error:', error);
     res.status(500).json({ message: 'Failed to get a response from Sortir.' });
   }
 });
 
-// Start server
 app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+  console.log(`✅ Server is running on port ${port}`);
 });
