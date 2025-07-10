@@ -4,26 +4,20 @@ const { OpenAI } = require("openai");
 
 const app = express();
 
-// ✅ Set your OpenAI API key (must be set in Render environment variables)
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// ✅ Serve static frontend files
 app.use(express.static("public"));
-
-// ✅ Allow large JSON payloads (PDFs are big)
 app.use(express.json({ limit: "20mb" }));
 
-// ✅ Simple health check route
 app.get("/", (req, res) => {
   res.send("✅ Sortir server is running.");
 });
 
-// ✅ Main Ask Sortir endpoint
 app.post("/ask", async (req, res) => {
   try {
-    const { question, pdfs } = req.body;
+    const { question, pdfs, filenames } = req.body;
 
     if (!Array.isArray(pdfs) || pdfs.length === 0 || !question) {
       console.error("❌ Invalid input: missing PDFs or question");
@@ -46,8 +40,9 @@ app.post("/ask", async (req, res) => {
 
       try {
         const data = await pdf(buffer);
-        console.log(`✅ Extracted text from PDF ${i + 1}, length: ${data.text.length}`);
-        combinedText += "\n\n" + data.text;
+        const fileName = filenames?.[i] || `Document ${i + 1}`;
+        combinedText += `\n\n--- START OF DOCUMENT ${i + 1}: ${fileName} ---\n${data.text}\n--- END OF DOCUMENT ${i + 1} ---\n`;
+        console.log(`✅ Parsed ${fileName}, length: ${data.text.length}`);
       } catch (parseError) {
         console.error(`❌ Error parsing PDF ${i + 1}:`, parseError);
       }
@@ -55,27 +50,24 @@ app.post("/ask", async (req, res) => {
 
     const maxLength = 48000;
     if (combinedText.length > maxLength) {
-      console.warn(`⚠️ Combined text too long (${combinedText.length}), truncating to ${maxLength}`);
+      console.warn(`⚠️ Truncating combined text (${combinedText.length}) to ${maxLength}`);
       combinedText = combinedText.slice(0, maxLength);
     }
 
     if (!combinedText.trim()) {
-      console.error("❌ No usable text extracted from any PDFs");
-      return res.status(500).json({ error: "Could not extract text from PDFs." });
+      return res.status(500).json({ error: "No text extracted from PDFs." });
     }
-
-    console.log("🧠 Sending to OpenAI...");
 
     const chatCompletion = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
         {
           role: "system",
-          content: "You are a helpful assistant for answering questions about internal company documents. Provide clear and relevant answers based only on the documents provided below. If you don’t find the answer, say so clearly.",
+          content: "You are a helpful assistant for answering questions about internal company documents. You will receive several documents, each clearly labeled. Use all documents to answer the user's question. If the answer is not found, say so clearly.",
         },
         {
           role: "user",
-          content: `Here are the combined documents:\n${combinedText}\n\nQuestion: ${question}`,
+          content: `DOCUMENTS:\n${combinedText}\n\nQUESTION:\n${question}`,
         },
       ],
       temperature: 0.1,
@@ -85,11 +77,11 @@ app.post("/ask", async (req, res) => {
     const answer = chatCompletion?.choices?.[0]?.message?.content;
 
     if (!answer) {
-      console.error("❌ No usable response from OpenAI. Full response:", JSON.stringify(chatCompletion, null, 2));
+      console.error("❌ No usable response from OpenAI");
       return res.status(500).json({ error: "No answer returned from OpenAI." });
     }
 
-    console.log("✅ Answer from OpenAI:", answer.slice(0, 200) + "...");
+    console.log("✅ Answer:", answer.slice(0, 200) + "...");
     res.json({ answer });
   } catch (error) {
     console.error("❌ Fatal error in /ask route:", error);
@@ -97,7 +89,6 @@ app.post("/ask", async (req, res) => {
   }
 });
 
-// ✅ Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
