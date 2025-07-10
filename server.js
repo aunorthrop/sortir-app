@@ -1,3 +1,26 @@
+const express = require("express");
+const pdf = require("pdf-parse");
+const { OpenAI } = require("openai");
+
+const app = express();
+
+// ✅ Set your OpenAI API key (must be set in Render environment variables)
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+// ✅ Serve static frontend files
+app.use(express.static("public"));
+
+// ✅ Allow large JSON payloads (PDFs are big)
+app.use(express.json({ limit: "20mb" }));
+
+// ✅ Simple health check route
+app.get("/", (req, res) => {
+  res.send("✅ Sortir server is running.");
+});
+
+// ✅ Main Ask Sortir endpoint
 app.post("/ask", async (req, res) => {
   try {
     const { question, pdfs } = req.body;
@@ -10,6 +33,7 @@ app.post("/ask", async (req, res) => {
     console.log(`📥 Received ${pdfs.length} PDFs and question: ${question}`);
 
     let combinedText = "";
+
     for (let i = 0; i < pdfs.length; i++) {
       const base64pdf = pdfs[i];
       if (!base64pdf.includes("base64,")) {
@@ -71,4 +95,10 @@ app.post("/ask", async (req, res) => {
     console.error("❌ Fatal error in /ask route:", error);
     res.status(500).json({ error: "Failed to process question." });
   }
+});
+
+// ✅ Start server
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`✅ Server running on port ${PORT}`);
 });
