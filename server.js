@@ -12,26 +12,31 @@ app.use(express.json({ limit: "10mb" }));
 
 app.post("/ask", async (req, res) => {
   try {
-    const { question, base64pdf } = req.body;
-    if (!base64pdf || !question) {
-      return res.status(400).json({ error: "Missing file or question." });
+    const { question, pdfs } = req.body;
+
+    if (!Array.isArray(pdfs) || pdfs.length === 0 || !question) {
+      return res.status(400).json({ error: "Missing PDFs or question." });
     }
 
-    const base64Data = base64pdf.split(";base64,").pop();
-    const buffer = Buffer.from(base64Data, "base64");
-    const data = await pdf(buffer);
-    const extractedText = data.text;
+    let combinedText = "";
+
+    for (const base64pdf of pdfs) {
+      const base64Data = base64pdf.split(";base64,").pop();
+      const buffer = Buffer.from(base64Data, "base64");
+      const data = await pdf(buffer);
+      combinedText += "\n\n" + data.text;
+    }
 
     const chatCompletion = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
         {
           role: "system",
-          content: "You are a helpful assistant for answering questions about internal company documents. Provide concise and relevant answers based solely on the provided document content. If the answer is not in the document, say so clearly.",
+          content: "You are a helpful assistant for answering questions about internal company documents. Provide clear and relevant answers based only on the documents provided below. If you don’t find the answer, say so clearly.",
         },
         {
           role: "user",
-          content: `Document content:\n${extractedText}\n\nQuestion: ${question}`,
+          content: `Here are the combined documents:\n${combinedText}\n\nQuestion: ${question}`,
         },
       ],
       temperature: 0.1,
