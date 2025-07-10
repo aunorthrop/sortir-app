@@ -1,31 +1,40 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Sortir Vault</title>
-  <link rel="stylesheet" href="style.css" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sortir - Internal Data Retrieval</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header>
-    <img src="sortir-logo.png" alt="Sortir Logo" class="header-logo">
-    </header>
+    <div class="container">
+        <img src="sortir-logo.png" alt="Sortir Logo" class="logo">
+        <h1>SORTIR</h1>
 
-  <form id="uploadForm">
-    <label for="fileInput" class="custom-file-upload">Choose File</label>
-    <input type="file" id="fileInput" name="file" accept=".pdf" />
-    <button type="submit">Upload PDF</button>
-  </form>
+        <div class="upload-section">
+            <input type="file" id="fileInput" accept=".pdf">
+            <button id="uploadButton">Upload PDF</button>
+        </div>
 
-  <div id="fileListContainer">
+        <div class="current-document-info">
+            <p>Current Active Document: <span id="activeFileName">None</span></p>
+        </div>
+
+        <div class="document-list-section">
+            <h2>Uploaded Documents</h2>
+            <ul id="documentList">
+                </ul>
+        </div>
+
+        <div class="ask-section">
+            <input type="text" id="questionInput" placeholder="Ask something...">
+            <button id="askButton">Ask Sortir</button>
+        </div>
+
+        <div class="answer-section">
+            <p id="answerText"></p>
+        </div>
     </div>
-
-  <form id="askForm">
-    <input type="text" id="questionInput" placeholder="Ask something..." />
-    <button type="submit">Ask Sortir</button>
-    <span id="loadingIndicator" class="loading-indicator" style="display: none;">Thinking . . .</span>
-  </form>
-
-  <div id="answerBox"></div>
-
-  <script src="script.js"></script>
+    <script src="script.js"></script>
 </body>
 </html>
