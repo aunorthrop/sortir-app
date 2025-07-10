@@ -1,92 +1,140 @@
 document.addEventListener("DOMContentLoaded", () => {
+  const signupForm = document.getElementById("signupForm");
+  const loginForm = document.getElementById("loginForm");
+  const logoutButton = document.getElementById("logoutButton");
   const uploadForm = document.getElementById("uploadForm");
+  const askForm = document.getElementById("askForm");
+
   const fileInput = document.getElementById("fileInput");
   const fileListContainer = document.getElementById("fileListContainer");
-  const askForm = document.getElementById("askForm");
   const questionInput = document.getElementById("questionInput");
-  const answerBox = document.getElementById("answerBox");
   const loadingIndicator = document.getElementById("loadingIndicator");
+  const answerBox = document.getElementById("answerBox");
 
-  function fetchFiles() {
-    fetch("/files")
-      .then((res) => res.json())
-      .then((files) => displayFiles(files))
-      .catch((err) => console.error("Error fetching files:", err));
+  async function fetchFiles() {
+    const res = await fetch("/files");
+    const files = await res.json();
+    displayFiles(files);
   }
 
   function displayFiles(files) {
     fileListContainer.innerHTML = "";
-    files.forEach((file) => {
-      const item = document.createElement("div");
-      item.className = "file-item";
+    files.forEach(file => {
+      const fileItem = document.createElement("div");
+      fileItem.classList.add("file-item");
 
-      const nameSpan = document.createElement("span");
-      nameSpan.className = "file-name-display";
-      nameSpan.textContent = file;
+      const fileNameSpan = document.createElement("span");
+      fileNameSpan.classList.add("file-name-display");
+      fileNameSpan.textContent = file;
 
-      const deleteBtn = document.createElement("button");
-      deleteBtn.className = "delete-button";
-      deleteBtn.textContent = "Delete";
-      deleteBtn.onclick = () => {
-        fetch(`/delete/${file}`, { method: "DELETE" })
-          .then(() => fetchFiles())
-          .catch((err) => console.error("Error deleting file:", err));
+      const deleteButton = document.createElement("button");
+      deleteButton.classList.add("delete-button");
+      deleteButton.textContent = "Delete";
+      deleteButton.onclick = async () => {
+        await fetch(`/delete/${file}`, { method: "DELETE" });
+        fetchFiles();
       };
 
-      item.appendChild(nameSpan);
-      item.appendChild(deleteBtn);
-      fileListContainer.appendChild(item);
+      fileItem.appendChild(fileNameSpan);
+      fileItem.appendChild(deleteButton);
+      fileListContainer.appendChild(fileItem);
     });
   }
 
-  uploadForm.addEventListener("submit", (e) => {
+  uploadForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const file = fileInput.files[0];
-    if (!file) return alert("Please select a file.");
+    if (!file) return alert("Please choose a PDF");
+
     const formData = new FormData();
     formData.append("file", file);
 
-    fetch("/upload", {
-      method: "POST",
-      body: formData,
-    })
-      .then((res) => res.json())
-      .then((result) => {
-        if (result.success) {
-          fetchFiles();
-          fileInput.value = "";
-        } else {
-          alert(result.error || "Upload failed");
-        }
-      })
-      .catch((err) => {
-        console.error("Upload error:", err);
-        alert("Upload failed");
-      });
+    const res = await fetch("/upload", { method: "POST", body: formData });
+    const data = await res.json();
+    if (data.success) {
+      fileInput.value = "";
+      fetchFiles();
+    } else {
+      alert(data.error || "Upload failed");
+    }
   });
 
-  askForm.addEventListener("submit", (e) => {
+  askForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const question = questionInput.value.trim();
+    const question = questionInput.value;
     if (!question) return;
+
     loadingIndicator.style.display = "inline";
-    fetch("/ask", {
+    const res = await fetch("/ask", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        answerBox.textContent = data.answer || data.error || "No response.";
-      })
-      .catch((err) => {
-        console.error("Ask error:", err);
-        answerBox.textContent = "Something went wrong.";
-      })
-      .finally(() => {
-        loadingIndicator.style.display = "none";
-      });
+    });
+
+    const data = await res.json();
+    loadingIndicator.style.display = "none";
+    answerBox.textContent = data.answer || data.error || "No response.";
   });
 
-  fetchFiles();
+  signupForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = document.getElementById("signupEmail").value;
+    const password = document.getElementById("signupPassword").value;
+
+    const res = await fetch("/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      alert("Signup successful, please log in.");
+    } else {
+      alert(data.error || "Signup failed");
+    }
+  });
+
+  loginForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = document.getElementById("loginEmail").value;
+    const password = document.getElementById("loginPassword").value;
+
+    const res = await fetch("/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      showApp();
+    } else {
+      alert(data.error || "Login failed");
+    }
+  });
+
+  logoutButton.addEventListener("click", async () => {
+    await fetch("/logout", { method: "POST" });
+    location.reload();
+  });
+
+  async function checkSession() {
+    const res = await fetch("/check-session");
+    const data = await res.json();
+    if (data.loggedIn) {
+      showApp();
+    }
+  }
+
+  function showApp() {
+    signupForm.style.display = "none";
+    loginForm.style.display = "none";
+    logoutButton.style.display = "inline-block";
+    uploadForm.style.display = "block";
+    askForm.style.display = "block";
+    fetchFiles();
+  }
+
+  checkSession();
 });
