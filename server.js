@@ -1,7 +1,6 @@
 const express = require("express");
 const pdf = require("pdf-parse");
 const { OpenAI } = require("openai");
-const path = require("path");
 
 const app = express();
 const openai = new OpenAI({
@@ -9,7 +8,7 @@ const openai = new OpenAI({
 });
 
 app.use(express.static("public"));
-app.use(express.json({ limit: '10mb' })); // Needed for base64 PDF data
+app.use(express.json({ limit: "10mb" }));
 
 app.post("/ask", async (req, res) => {
   try {
@@ -18,21 +17,17 @@ app.post("/ask", async (req, res) => {
       return res.status(400).json({ error: "Missing file or question." });
     }
 
-    // Decode base64 PDF
-    const base64Data = base64pdf.split(";base64,").pop(); // remove data header
+    const base64Data = base64pdf.split(";base64,").pop();
     const buffer = Buffer.from(base64Data, "base64");
-
-    // Extract text from PDF
     const data = await pdf(buffer);
     const extractedText = data.text;
 
-    // Query OpenAI
     const chatCompletion = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
         {
           role: "system",
-          content: "You are a helpful assistant for answering questions about internal company documents. Provide concise and relevant answers based solely on the provided document content. If the answer is not in the document, state that you cannot find the information.",
+          content: "You are a helpful assistant for answering questions about internal company documents. Provide concise and relevant answers based solely on the provided document content. If the answer is not in the document, say so clearly.",
         },
         {
           role: "user",
@@ -43,15 +38,20 @@ app.post("/ask", async (req, res) => {
       max_tokens: 500,
     });
 
-    const answer = chatCompletion.choices[0].message.content || "No answer returned";
+    const answer = chatCompletion?.choices?.[0]?.message?.content;
+    if (!answer) {
+      console.error("No response from OpenAI:", chatCompletion);
+      return res.status(500).json({ error: "No answer returned from OpenAI." });
+    }
+
     res.json({ answer });
   } catch (error) {
-    console.error("Error in /ask:", error);
-    res.status(500).json({ error: "Failed to get answer" });
+    console.error("Error in /ask route:", error);
+    res.status(500).json({ error: "Failed to get answer from OpenAI." });
   }
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`✅ Server running on port ${PORT}`);
 });
