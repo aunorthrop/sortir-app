@@ -1,11 +1,9 @@
 body {
-  font-family: sans-serif;
-  margin: 0;
-  background-color: #282c34;
-  color: #f8f8f2;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen;
+  background-color: #ffffff;
+  color: #333;
+  max-width: 700px;
+  margin: 0 auto;
   padding: 20px;
 }
 
@@ -13,145 +11,84 @@ header {
   display: flex;
   justify-content: center;
   margin-bottom: 20px;
-  width: 100%;
 }
 
 .header-logo {
-  height: 360px;
-  filter: drop-shadow(0 0 5px rgba(0, 255, 255, 0.7));
+  height: 40px;
 }
 
 form {
   margin-bottom: 20px;
-  background-color: #3a3f4c;
-  padding: 20px;
-  border-radius: 8px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-  width: 100%;
-  max-width: 400px;
-  box-sizing: border-box;
-}
-
-input[type="file"],
-input[type="text"] {
-  width: calc(100% - 20px);
-  padding: 10px;
-  margin-bottom: 15px;
-  border: 1px solid #00ffff;
-  border-radius: 5px;
-  background-color: #4b5262;
-  color: #f8f8f2;
-  box-sizing: border-box;
-}
-
-input[type="text"]::placeholder {
-  color: #bbb;
-}
-
-button[type="submit"] {
-  background-color: #00ffff;
-  color: #282c34;
-  padding: 10px 15px;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 1em;
-  transition: background-color 0.3s ease;
-}
-
-button[type="submit"]:hover {
-  background-color: #00ccff;
-}
-
-#answerBox {
-  margin-top: 20px;
-  padding: 15px;
-  background-color: #3a3f4c;
-  border: 1px solid #00ffff;
-  border-radius: 8px;
-  min-height: 50px;
-  width: 100%;
-  max-width: 400px;
-  box-sizing: border-box;
-  color: #f8f8f2;
-}
-
-#fileInput {
-  display: none;
 }
 
 .custom-file-upload {
-  display: block;
-  background-color: #00ffff;
-  color: #282c34;
-  padding: 10px 15px;
-  border-radius: 5px;
+  display: inline-block;
+  padding: 6px 12px;
   cursor: pointer;
-  text-align: center;
-  margin-bottom: 15px;
-  transition: background-color 0.3s ease;
+  background-color: #222;
+  color: #fff;
+  margin-right: 8px;
+  border-radius: 5px;
 }
 
-.custom-file-upload:hover {
-  background-color: #00ccff;
+input[type="file"] {
+  display: none;
+}
+
+button {
+  padding: 6px 12px;
+  background-color: #007bff;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: #0056b3;
 }
 
 #fileListContainer {
-  margin-bottom: 20px;
-  background-color: #3a3f4c;
-  padding: 15px;
-  border-radius: 8px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-  width: 100%;
-  max-width: 400px;
-  box-sizing: border-box;
-  color: #f8f8f2;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  margin-bottom: 15px;
 }
 
 .file-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 0;
-  border-bottom: 1px dashed #555;
-}
-
-.file-item:last-child {
-  border-bottom: none;
+  background-color: #f2f2f2;
+  padding: 6px 12px;
+  margin-bottom: 6px;
+  border-radius: 4px;
 }
 
 .file-name-display {
-  flex-grow: 1;
-  margin-right: 10px;
-  word-break: break-word;
+  font-size: 14px;
 }
 
 .delete-button {
-  background-color: #ff4d4d;
-  color: white;
-  padding: 5px 10px;
+  background-color: #dc3545;
+  padding: 4px 10px;
   border: none;
   border-radius: 4px;
+  color: white;
+  font-size: 13px;
   cursor: pointer;
-  font-size: 0.9em;
-  transition: background-color 0.3s ease;
 }
 
 .delete-button:hover {
-  background-color: #cc0000;
+  background-color: #b52a38;
 }
 
 .loading-indicator {
-  margin-left: 10px;
   font-style: italic;
-  color: #00ffff;
-  animation: blink 1s infinite alternate;
+  margin-left: 10px;
+  color: #999;
 }
 
-@keyframes blink {
-  from { opacity: 1; }
-  to { opacity: 0.5; }
+#answerBox {
+  margin-top: 20px;
+  background-color: #eef1f5;
+  padding: 12px;
+  border-radius: 6px;
 }
