@@ -1,39 +1,40 @@
 const express = require("express");
 const multer = require("multer");
-const fs = require("fs");
 const pdf = require("pdf-parse");
-const { Configuration, OpenAIApi } = require("openai");
-const path = require("path");
+const cors = require("cors");
+const dotenv = require("dotenv");
+const { OpenAI } = require("openai");
 
-require("dotenv").config();
-
+dotenv.config();
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
 
-const configuration = new Configuration({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-const openai = new OpenAIApi(configuration);
-
-app.use(express.static("public"));
+app.use(cors());
 app.use(express.json());
+app.use(express.static("public"));
 
-let extractedText = "";
-let uploadedFileName = "";
+let uploadedDocuments = []; // { name, text }
 
 app.post("/upload", upload.single("file"), async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: "No file uploaded." });
-    }
+    if (!req.file) return res.status(400).json({ error: "No file uploaded." });
 
     const dataBuffer = req.file.buffer;
     const data = await pdf(dataBuffer);
-    extractedText = data.text;
-    uploadedFileName = req.file.originalname;
 
-    res.json({ message: "File uploaded successfully", fileName: uploadedFileName });
+    if (!data.text || data.text.trim() === "") {
+      return res.status(400).json({ error: "Failed to extract text from PDF." });
+    }
+
+    const fileData = {
+      name: req.file.originalname,
+      text: data.text
+    };
+
+    uploadedDocuments.push(fileData);
+    res.json({ message: "File uploaded successfully", fileName: fileData.name });
   } catch (error) {
     console.error("Error extracting text:", error);
     res.status(500).json({ error: "Failed to extract text from PDF" });
@@ -44,16 +45,14 @@ app.post("/ask", async (req, res) => {
   try {
     const { question } = req.body;
 
-    if (!extractedText) {
-      return res.json({ answer: "Please upload a PDF first." });
+    if (!uploadedDocuments.length) {
+      return res.json({ answer: "Please upload at least one PDF first." });
     }
 
-    if (!question || question.trim() === "") {
-      return res.json({ answer: "Please provide a question." });
-    }
+    const combinedText = uploadedDocuments.map(doc => doc.text).join("\n---\n");
 
-    const chatCompletion = await openai.createChatCompletion({
-      model: "gpt-4",
+    const chatCompletion = await openai.chat.completions.create({
+      model: "gpt-4o",
       messages: [
         {
           role: "system",
@@ -61,25 +60,26 @@ app.post("/ask", async (req, res) => {
         },
         {
           role: "user",
-          content: `Document content:\n${extractedText}\n\nQuestion: ${question}`,
+          content: `Document content:\n${combinedText}\n\nQuestion: ${question}`,
         },
       ],
       temperature: 0.1,
       max_tokens: 500,
     });
 
-    const answer = chatCompletion.data.choices[0].message.content || "No answer returned";
+    const answer = chatCompletion.choices[0].message.content || "No answer returned";
     res.json({ answer });
   } catch (error) {
-    console.error("Error getting answer from OpenAI:", error);
+    console.error("Error asking Sortir:", error);
     res.status(500).json({ error: "Failed to get answer from AI" });
   }
 });
 
 app.post("/delete", (req, res) => {
+  const { fileName } = req.body;
+
   try {
-    extractedText = "";
-    uploadedFileName = "";
+    uploadedDocuments = uploadedDocuments.filter(doc => doc.name !== fileName);
     res.json({ message: "File deleted successfully." });
   } catch (error) {
     console.error("Error deleting file:", error);
@@ -88,6 +88,4 @@ app.post("/delete", (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
