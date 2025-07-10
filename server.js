@@ -1,22 +1,17 @@
-const express = require('express');
-const fileUpload = require('express-fileupload');
-const cors = require('cors');
-const fs = require('fs');
-const pdfParse = require('pdf-parse');
-const { Configuration, OpenAIApi } = require('openai');
+import express from 'express';
+import fileUpload from 'express-fileupload';
+import cors from 'cors';
+import pdfParse from 'pdf-parse';
+import { OpenAI } from 'openai';
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const port = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(fileUpload());
-app.use(express.static('public'));
 app.use(express.json());
+app.use(fileUpload());
 
-let allTextChunks = [];
-
-const configuration = new Configuration({
-  apiKey: process.env.OPENAI_API_KEY
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 });
 const openai = new OpenAIApi(configuration);
 
