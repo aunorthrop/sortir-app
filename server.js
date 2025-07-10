@@ -1,148 +1,127 @@
-const express = require("express");
-const multer = require("multer");
-const fs = require("fs");
-const path = require("path");
-const pdfParse = require("pdf-parse");
-const cors = require("cors");
-require("dotenv").config();
-const { OpenAI } = require("openai");
-const bcrypt = require("bcrypt");
-const session = require("express-session");
-const low = require("lowdb");
-const FileSync = require("lowdb/adapters/FileSync");
+const express = require('express');
+const multer = require('multer');
+const fs = require('fs');
+const path = require('path');
+const pdfParse = require('pdf-parse');
+const session = require('express-session');
+const { Configuration, OpenAIApi } = require('openai');
+
+const low = require('lowdb');
+const FileSync = require('lowdb/adapters/FileSync');
+const adapter = new FileSync('db.json');
+const db = low(adapter);
+
+db.defaults({ users: [], sessions: {}, uploads: {} }).write();
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-const adapter = new FileSync("users/db.json");
-const db = low(adapter);
-db.defaults({ users: [], files: {} }).write();
-
-app.use(cors());
+app.use(express.static('public'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static("public"));
 
 app.use(session({
-  secret: "sortir_secret",
+  secret: 'sortir-secret',
   resave: false,
-  saveUninitialized: false,
+  saveUninitialized: true
 }));
 
-const upload = multer({ dest: "uploads/" });
+const upload = multer({ dest: 'uploads/' });
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+const configuration = new Configuration({
+  apiKey: process.env.OPENAI_API_KEY
 });
+const openai = new OpenAIApi(configuration);
 
-function requireLogin(req, res, next) {
-  if (!req.session.userId) return res.status(403).json({ error: "Not logged in" });
-  next();
+// Utility to get current user's uploads
+function getUserUploads(userId) {
+  return db.get('uploads').get(userId).value() || [];
 }
 
-app.post("/register", async (req, res) => {
-  const { email, password } = req.body;
-  if (db.get("users").find({ email }).value()) {
-    return res.status(400).json({ error: "Email already registered" });
-  }
-  const hashed = await bcrypt.hash(password, 10);
-  const id = Date.now().toString();
-  db.get("users").push({ id, email, password: hashed }).write();
-  res.json({ success: true });
+app.post('/signup', (req, res) => {
+  const { username, password } = req.body;
+  const userExists = db.get('users').find({ username }).value();
+  if (userExists) return res.status(400).send('User already exists');
+  db.get('users').push({ username, password }).write();
+  req.session.user = username;
+  res.sendStatus(200);
 });
 
-app.post("/login", async (req, res) => {
-  const { email, password } = req.body;
-  const user = db.get("users").find({ email }).value();
-  if (!user) return res.status(400).json({ error: "Invalid credentials" });
-
-  const valid = await bcrypt.compare(password, user.password);
-  if (!valid) return res.status(400).json({ error: "Invalid credentials" });
-
-  req.session.userId = user.id;
-  res.json({ success: true });
+app.post('/login', (req, res) => {
+  const { username, password } = req.body;
+  const user = db.get('users').find({ username, password }).value();
+  if (!user) return res.status(401).send('Invalid credentials');
+  req.session.user = username;
+  res.sendStatus(200);
 });
 
-app.get("/logout", (req, res) => {
-  req.session.destroy();
-  res.json({ success: true });
+app.post('/logout', (req, res) => {
+  req.session.destroy(() => res.sendStatus(200));
 });
 
-app.post("/upload", requireLogin, upload.single("file"), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-
-  const fileExt = path.extname(req.file.originalname).toLowerCase();
-  if (fileExt !== ".pdf") {
-    fs.unlinkSync(req.file.path);
-    return res.status(400).json({ error: "Only PDF files are supported" });
-  }
-
-  const filename = `${Date.now()}_${req.file.originalname}`;
-  const destPath = path.join(__dirname, "uploads", filename);
-  fs.rename(req.file.path, destPath, (err) => {
-    if (err) return res.status(500).json({ error: "Failed to save file" });
-
-    const userId = req.session.userId;
-    const fileList = db.get("files").get(userId).value() || [];
-    db.get("files").set(userId, [...fileList, filename]).write();
-    return res.json({ success: true });
-  });
+app.get('/session', (req, res) => {
+  res.json({ user: req.session.user || null });
 });
 
-app.get("/files", requireLogin, (req, res) => {
-  const userId = req.session.userId;
-  const userFiles = db.get("files").get(userId).value() || [];
-  res.json(userFiles);
-});
-
-app.delete("/delete/:filename", requireLogin, (req, res) => {
-  const userId = req.session.userId;
-  const filename = req.params.filename;
-
-  const userFiles = db.get("files").get(userId).value() || [];
-  const filePath = path.join(__dirname, "uploads", filename);
-
-  if (!userFiles.includes(filename)) {
-    return res.status(403).json({ error: "Unauthorized delete" });
-  }
-
-  fs.unlink(filePath, (err) => {
-    if (err) return res.status(500).json({ success: false });
-
-    db.get("files").set(userId, userFiles.filter(f => f !== filename)).write();
-    res.json({ success: true });
-  });
-});
-
-app.post("/ask", requireLogin, async (req, res) => {
-  const question = req.body.question;
-  const userId = req.session.userId;
-  const userFiles = db.get("files").get(userId).value() || [];
-
-  let fullText = "";
-  for (const file of userFiles) {
-    const filePath = path.join(__dirname, "uploads", file);
-    try {
-      const data = await pdfParse(fs.readFileSync(filePath));
-      fullText += `\n\n--- Content from ${file} ---\n\n` + data.text;
-    } catch (err) {
-      console.error(`Failed to parse ${file}:`, err);
-    }
-  }
+app.post('/upload', upload.single('file'), async (req, res) => {
+  if (!req.session.user) return res.sendStatus(401);
+  const file = req.file;
+  const userId = req.session.user;
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4",
-      messages: [
-        { role: "system", content: "You are a helpful assistant reading company documents to answer questions." },
-        { role: "user", content: `${question}\n\nDocuments:\n${fullText}` },
-      ],
-      temperature: 0.2,
-    });
-    res.json({ answer: completion.choices[0].message.content.trim() });
+    const dataBuffer = fs.readFileSync(file.path);
+    const parsed = await pdfParse(dataBuffer);
+    const content = parsed.text;
+
+    const existing = getUserUploads(userId);
+    db.get('uploads').set(userId, [...existing, {
+      filename: file.originalname,
+      path: file.path,
+      content
+    }]).write();
+
+    res.sendStatus(200);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "OpenAI request failed" });
+    res.status(500).send('Failed to process file');
+  }
+});
+
+app.get('/files', (req, res) => {
+  if (!req.session.user) return res.sendStatus(401);
+  res.json(getUserUploads(req.session.user));
+});
+
+app.post('/delete', (req, res) => {
+  if (!req.session.user) return res.sendStatus(401);
+  const { filename } = req.body;
+  const userId = req.session.user;
+
+  const filtered = getUserUploads(userId).filter(f => f.filename !== filename);
+  db.get('uploads').set(userId, filtered).write();
+  res.sendStatus(200);
+});
+
+app.post('/ask', async (req, res) => {
+  if (!req.session.user) return res.sendStatus(401);
+  const { question } = req.body;
+  const files = getUserUploads(req.session.user);
+  const combinedText = files.map(f => f.content).join('\n').slice(-15000);
+
+  try {
+    const completion = await openai.createChatCompletion({
+      model: 'gpt-4',
+      messages: [
+        { role: 'system', content: 'You are a helpful assistant answering questions about internal business documents.' },
+        { role: 'user', content: `Question: ${question}\n\nDocuments:\n${combinedText}` }
+      ]
+    });
+
+    const answer = completion.data.choices[0].message.content;
+    res.json({ answer });
+  } catch (err) {
+    console.error(err.response?.data || err.message);
+    res.status(500).send('OpenAI error');
   }
 });
 
