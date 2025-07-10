@@ -1,119 +1,66 @@
-let db;
+const fileInput = document.getElementById("fileInput");
+const fileList = document.getElementById("fileList");
+let uploadedFiles = [];
 
-const request = indexedDB.open("SortirVault", 1);
-request.onerror = (e) => console.error("IndexedDB error:", e);
-request.onsuccess = (e) => {
-  db = e.target.result;
-  displayAllFiles();
-};
-request.onupgradeneeded = (e) => {
-  db = e.target.result;
-  db.createObjectStore("files", { keyPath: "name" });
-};
-
-document.getElementById("uploadForm").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const fileInput = document.getElementById("fileInput");
-  if (fileInput.files.length === 0) return alert("Please select a file.");
-
+function uploadFile() {
   const file = fileInput.files[0];
+  if (!file) return;
+
   const reader = new FileReader();
-  reader.onload = () => {
-    const transaction = db.transaction(["files"], "readwrite");
-    const store = transaction.objectStore("files");
-    store.put({ name: file.name, content: reader.result });
-    transaction.oncomplete = displayAllFiles;
+  reader.onload = function (e) {
+    const base64 = e.target.result.split(',')[1];
+    const fileData = {
+      name: file.name,
+      content: base64
+    };
+
+    fetch('/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(fileData)
+    })
+    .then(res => res.json())
+    .then(data => {
+      uploadedFiles.push(file.name);
+      updateFileList();
+    });
   };
   reader.readAsDataURL(file);
-  fileInput.value = '';
-});
-
-function displayAllFiles() {
-  const fileListContainer = document.getElementById("fileListContainer");
-  fileListContainer.innerHTML = "";
-
-  const transaction = db.transaction(["files"], "readonly");
-  const store = transaction.objectStore("files");
-
-  store.openCursor().onsuccess = (e) => {
-    const cursor = e.target.result;
-    if (cursor) {
-      const file = cursor.value;
-
-      const fileDiv = document.createElement("div");
-      fileDiv.className = "file-item";
-
-      const fileNameSpan = document.createElement("span");
-      fileNameSpan.className = "file-name-display";
-      fileNameSpan.textContent = file.name;
-
-      const deleteButton = document.createElement("button");
-      deleteButton.className = "delete-button";
-      deleteButton.textContent = "Delete";
-
-      deleteButton.onclick = () => {
-        const delTx = db.transaction(["files"], "readwrite");
-        delTx.objectStore("files").delete(file.name);
-        delTx.oncomplete = displayAllFiles;
-      };
-
-      fileDiv.appendChild(fileNameSpan);
-      fileDiv.appendChild(deleteButton);
-      fileListContainer.appendChild(fileDiv);
-
-      cursor.continue();
-    }
-  };
 }
 
-document.getElementById("askForm").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const question = document.getElementById("questionInput").value.trim();
-  const loadingIndicator = document.getElementById("loadingIndicator");
-  const answerBox = document.getElementById("answerBox");
+function updateFileList() {
+  fileList.innerHTML = '';
+  uploadedFiles.forEach(name => {
+    const div = document.createElement('div');
+    div.textContent = name;
+    const delBtn = document.createElement('button');
+    delBtn.textContent = 'Delete';
+    delBtn.onclick = () => deleteFile(name);
+    div.appendChild(delBtn);
+    fileList.appendChild(div);
+  });
+}
 
-  if (!question) return alert("Please enter a question.");
+function deleteFile(name) {
+  fetch('/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name })
+  }).then(() => {
+    uploadedFiles = uploadedFiles.filter(f => f !== name);
+    updateFileList();
+  });
+}
 
-  loadingIndicator.style.display = "inline";
-  answerBox.innerText = "";
-
-  const tx = db.transaction(["files"], "readonly");
-  const store = tx.objectStore("files");
-  const getAll = store.getAll();
-
-  getAll.onsuccess = async () => {
-    const files = getAll.result;
-    if (!files || files.length === 0) {
-      loadingIndicator.style.display = "none";
-      return alert("Please upload at least one PDF first.");
-    }
-
-    const allBase64PDFs = files.map(file => file.content);
-    const filenames = files.map(file => file.name);
-
-    try {
-      const response = await fetch("/ask", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          question: question,
-          pdfs: allBase64PDFs,
-          filenames: filenames,
-        }),
-      });
-
-      const data = await response.json();
-      if (data.answer) {
-        answerBox.innerText = data.answer;
-      } else {
-        answerBox.innerText = "⚠️ No answer returned from AI.";
-        console.error("⚠️ No answer:", data);
-      }
-    } catch (err) {
-      console.error("Ask Sortir error:", err);
-      answerBox.innerText = "An error occurred.";
-    } finally {
-      loadingIndicator.style.display = "none";
-    }
-  };
-});
+function askSortir() {
+  const userPrompt = document.getElementById("userPrompt").value;
+  fetch('/ask', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt: userPrompt })
+  })
+  .then(res => res.json())
+  .then(data => {
+    document.getElementById("responseContainer").innerText = data.response;
+  });
+}
