@@ -1,28 +1,29 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sortir AI</title>
+  <title>Sortir Vault</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="logo-container">
-    <img src="logo.png" alt="Sortir Logo" class="logo" />
-  </div>
+  <header>
+    <img src="sortir-logo.png" alt="Sortir Logo" class="header-logo">
+  </header>
 
-  <div class="upload-box">
-    <input type="file" id="fileInput" />
-    <button onclick="uploadFile()">Upload PDF</button>
-    <ul id="fileList"></ul>
-  </div>
+  <form id="uploadForm">
+    <label for="fileInput" class="custom-file-upload">Choose File</label>
+    <input type="file" id="fileInput" name="file" accept=".pdf" />
+    <button type="submit">Upload PDF</button>
+  </form>
 
-  <div class="ask-box">
+  <div id="fileListContainer"></div>
+
+  <form id="askForm">
     <input type="text" id="questionInput" placeholder="Ask something..." />
-    <button onclick="askSortir()">Ask Sortir</button>
-  </div>
+    <button type="submit">Ask Sortir</button>
+    <span id="loadingIndicator" class="loading-indicator" style="display: none;">Thinking . . .</span>
+  </form>
 
-  <div id="responseText" class="response-box"></div>
+  <div id="answerBox"></div>
 
   <script src="script.js"></script>
 </body>
