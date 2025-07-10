@@ -1,76 +1,74 @@
-import express from 'express';
-import fileUpload from 'express-fileupload';
-import cors from 'cors';
-import pdfParse from 'pdf-parse';
-import { OpenAI } from 'openai';
-import dotenv from 'dotenv';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import fs from 'fs';
+import express from "express";
+import fileUpload from "express-fileupload";
+import cors from "cors";
+import dotenv from "dotenv";
+import fs from "fs";
+import pdfParse from "pdf-parse";
+import { OpenAI } from "openai";
+import path from "path";
 
 dotenv.config();
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 const app = express();
 const port = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(express.json());
 app.use(fileUpload());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.json());
+app.use(express.static("public"));
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
-let storedTexts = [];
+const uploadedTexts = {};
 
-app.post('/upload', async (req, res) => {
+app.post("/upload", async (req, res) => {
   if (!req.files || !req.files.pdf) {
-    return res.status(400).send('No file uploaded.');
+    return res.status(400).send("No PDF uploaded.");
   }
 
-  const uploadedFile = req.files.pdf;
+  const file = req.files.pdf;
+  const fileName = file.name;
 
   try {
-    const data = await pdfParse(uploadedFile.data);
-    storedTexts.push({ name: uploadedFile.name, text: data.text });
-    res.send({ success: true, name: uploadedFile.name });
+    const data = await pdfParse(file.data);
+    uploadedTexts[fileName] = data.text;
+    res.send({ success: true, fileName });
   } catch (error) {
-    res.status(500).send('Failed to parse PDF');
+    console.error("Error parsing PDF:", error);
+    res.status(500).send("Failed to read PDF.");
   }
 });
 
-app.post('/ask', async (req, res) => {
+app.post("/ask", async (req, res) => {
   const question = req.body.question;
+  const allText = Object.values(uploadedTexts).join("\n\n");
 
-  if (!question || storedTexts.length === 0) {
-    return res.status(400).send({ answer: 'No question provided or no documents uploaded.' });
+  if (!allText) {
+    return res.status(400).send("No uploaded text found.");
   }
 
-  const combinedText = storedTexts.map(doc => `From ${doc.name}:\n${doc.text}`).join('\n\n');
-
   try {
-    const chat = await openai.chat.completions.create({
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4",
       messages: [
-        { role: 'system', content: 'You are a helpful assistant who answers questions based on the documents provided.' },
-        { role: 'user', content: `Documents:\n${combinedText}\n\nQuestion: ${question}` }
+        {
+          role: "system",
+          content:
+            "You are a helpful assistant for retrieving business document information. Use only the provided content to answer.",
+        },
+        {
+          role: "user",
+          content: `Based on these documents:\n\n${allText}\n\nQuestion: ${question}`,
+        },
       ],
-      model: 'gpt-4'
     });
 
-    const answer = chat.choices[0].message.content;
-    res.send({ answer });
+    res.send({ answer: completion.choices[0].message.content });
   } catch (error) {
-    console.error(error);
-    res.status(500).send({ answer: 'Failed to fetch answer from OpenAI.' });
+    console.error("OpenAI API error:", error);
+    res.status(500).send("Failed to get a response.");
   }
-});
-
-app.post('/delete', (req, res) => {
-  const fileName = req.body.name;
-  storedTexts = storedTexts.filter(doc => doc.name !== fileName);
-  res.send({ success: true });
 });
 
 app.listen(port, () => {
