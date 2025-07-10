@@ -1,31 +1,33 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <title>Sortir Vault</title>
-  <link rel="stylesheet" href="style.css" />
+
+  <!-- ✅ Add this for client-side PDF parsing -->
+  <script src="https://unpkg.com/pdfjs-dist@3.10.111/build/pdf.min.js"></script>
+
+  <!-- Your stylesheet (if any) -->
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Your app script -->
+  <script defer src="script.js"></script>
 </head>
 <body>
-  <header>
-    <img src="sortir-logo.png" alt="Sortir Logo" class="header-logo">
-    </header>
+  <h1>Sortir Vault</h1>
 
   <form id="uploadForm">
-    <label for="fileInput" class="custom-file-upload">Choose File</label>
-    <input type="file" id="fileInput" name="file" accept=".pdf" />
-    <button type="submit">Upload PDF</button>
+    <input type="file" id="fileInput" accept=".pdf,.txt,.md,.js,.ts,.json,.py" />
+    <button type="submit">Upload Document</button>
   </form>
 
-  <div id="fileListContainer">
-    </div>
+  <div id="fileListContainer"></div>
 
   <form id="askForm">
-    <input type="text" id="questionInput" placeholder="Ask something..." />
-    <button type="submit">Ask Sortir</button>
-    <span id="loadingIndicator" class="loading-indicator" style="display: none;">Thinking . . .</span>
+    <input type="text" id="questionInput" placeholder="Ask Sortir..." />
+    <button type="submit">Ask</button>
+    <span id="loadingIndicator" style="display:none;">Thinking…</span>
   </form>
 
-  <div id="answerBox"></div>
-
-  <script src="script.js"></script>
+  <pre id="answerBox"></pre>
 </body>
 </html>
