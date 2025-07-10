@@ -1,34 +1,30 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Sortir Vault</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="container">
-    <img src="logo.png" alt="Sortir Logo" class="logo" />
+  <header>
+    <img src="sortir-logo.png" alt="Sortir Logo" class="header-logo">
+    </header>
 
-    <label class="custom-file-upload">
-      <input type="file" id="fileInput" />
-      Choose File
-    </label>
-    <button id="deleteFileBtn">Delete File</button>
+  <form id="uploadForm">
+    <label for="fileInput" class="custom-file-upload">Choose File</label>
+    <input type="file" id="fileInput" name="file" accept=".pdf" />
+    <button type="submit">Upload PDF</button>
+  </form>
 
-    <div id="fileStatus"></div>
-    <div id="downloadLink"></div>
-
-    <input type="text" id="questionInput" placeholder="Ask something about your documents..." />
-    <button id="askBtn">Ask Sortir</button>
-
-    <div id="responseModal" class="modal hidden">
-      <div class="modal-content">
-        <span id="closeModal" class="close-button">Close</span>
-        <p id="responseText"></p>
-      </div>
+  <div id="fileListContainer">
     </div>
-  </div>
+
+  <form id="askForm">
+    <input type="text" id="questionInput" placeholder="Ask something..." />
+    <button type="submit">Ask Sortir</button>
+    <span id="loadingIndicator" class="loading-indicator" style="display: none;">Thinking . . .</span>
+  </form>
+
+  <div id="answerBox"></div>
 
   <script src="script.js"></script>
 </body>
