@@ -8,15 +8,21 @@
 </head>
 <body>
   <div class="container">
-    <input type="file" id="pdfInput">
-    <button onclick="uploadPDF()">Upload PDF</button>
+    <h1>Sortir Vault</h1>
+
+    <div class="upload-section">
+      <input type="file" id="pdfInput" />
+      <button onclick="uploadPDF()">Upload PDF</button>
+    </div>
 
     <div id="fileList"></div>
 
-    <input type="text" id="question" placeholder="Ask a question about your documents">
-    <button onclick="askSortir()">Ask Sortir</button>
+    <div class="ask-section">
+      <input type="text" id="userPrompt" placeholder="Ask about your documents…" />
+      <button onclick="askSortir()">Ask Sortir</button>
+    </div>
 
-    <div id="response"></div>
+    <div id="responseBox"></div>
   </div>
 
   <script src="script.js"></script>
