@@ -89,6 +89,7 @@ document.getElementById("askForm").addEventListener("submit", async (e) => {
     }
 
     const allBase64PDFs = files.map(file => file.content);
+    const filenames = files.map(file => file.name);
 
     try {
       const response = await fetch("/ask", {
@@ -97,6 +98,7 @@ document.getElementById("askForm").addEventListener("submit", async (e) => {
         body: JSON.stringify({
           question: question,
           pdfs: allBase64PDFs,
+          filenames: filenames,
         }),
       });
 
