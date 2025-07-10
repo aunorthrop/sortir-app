@@ -3,6 +3,15 @@ import fileUpload from 'express-fileupload';
 import cors from 'cors';
 import pdfParse from 'pdf-parse';
 import { OpenAI } from 'openai';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs';
+
+dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -10,48 +19,60 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 app.use(fileUpload());
+app.use(express.static(path.join(__dirname, 'public')));
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-});
-const openai = new OpenAIApi(configuration);
 
-// Handle PDF upload
+let storedTexts = [];
+
 app.post('/upload', async (req, res) => {
-  if (!req.files || !req.files.pdfFile) {
+  if (!req.files || !req.files.pdf) {
     return res.status(400).send('No file uploaded.');
   }
 
-  const file = req.files.pdfFile;
-  const data = await pdfParse(file.data);
-
-  allTextChunks.push(data.text);
-  res.send({ message: 'PDF uploaded and processed.' });
-});
-
-// Handle question asking
-app.post('/ask', async (req, res) => {
-  const question = req.body.question;
-  const combinedText = allTextChunks.join('\n\n');
+  const uploadedFile = req.files.pdf;
 
   try {
-    const completion = await openai.createChatCompletion({
-      model: 'gpt-4',
-      messages: [
-        { role: 'system', content: 'You are a helpful assistant that answers questions based only on the uploaded business documents.' },
-        { role: 'user', content: `Documents:\n${combinedText}\n\nQuestion: ${question}` }
-      ],
-      temperature: 0.3,
-      max_tokens: 500
-    });
-
-    const answer = completion.data.choices[0].message.content.trim();
-    res.json({ answer });
-  } catch (err) {
-    console.error(err);
-    res.status(500).send('Error processing question.');
+    const data = await pdfParse(uploadedFile.data);
+    storedTexts.push({ name: uploadedFile.name, text: data.text });
+    res.send({ success: true, name: uploadedFile.name });
+  } catch (error) {
+    res.status(500).send('Failed to parse PDF');
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+app.post('/ask', async (req, res) => {
+  const question = req.body.question;
+
+  if (!question || storedTexts.length === 0) {
+    return res.status(400).send({ answer: 'No question provided or no documents uploaded.' });
+  }
+
+  const combinedText = storedTexts.map(doc => `From ${doc.name}:\n${doc.text}`).join('\n\n');
+
+  try {
+    const chat = await openai.chat.completions.create({
+      messages: [
+        { role: 'system', content: 'You are a helpful assistant who answers questions based on the documents provided.' },
+        { role: 'user', content: `Documents:\n${combinedText}\n\nQuestion: ${question}` }
+      ],
+      model: 'gpt-4'
+    });
+
+    const answer = chat.choices[0].message.content;
+    res.send({ answer });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ answer: 'Failed to fetch answer from OpenAI.' });
+  }
+});
+
+app.post('/delete', (req, res) => {
+  const fileName = req.body.name;
+  storedTexts = storedTexts.filter(doc => doc.name !== fileName);
+  res.send({ success: true });
+});
+
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
 });
