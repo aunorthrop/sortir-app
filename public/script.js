@@ -1,54 +1,62 @@
-async function uploadPDF() {
-  const input = document.getElementById('pdfInput');
+let uploadedFiles = [];
+
+function uploadPDF() {
+  const input = document.getElementById("pdfInput");
+  const file = input.files[0];
+  if (!file) return;
+
   const formData = new FormData();
-  formData.append('file', input.files[0]);
+  formData.append("pdf", file);
 
-  await fetch('/upload', {
-    method: 'POST',
+  fetch("/upload", {
+    method: "POST",
     body: formData,
-  });
-
-  input.value = '';
-  loadFiles();
+  })
+    .then((res) => res.json())
+    .then((data) => {
+      if (data.success) {
+        uploadedFiles.push(file.name);
+        renderFileList();
+      }
+    });
 }
 
-async function loadFiles() {
-  const res = await fetch('/files');
-  const files = await res.json();
+function renderFileList() {
+  const list = document.getElementById("fileList");
+  list.innerHTML = "";
 
-  const list = document.getElementById('fileList');
-  list.innerHTML = '';
-  files.forEach(name => {
-    const div = document.createElement('div');
-    div.textContent = name;
-
-    const del = document.createElement('button');
-    del.textContent = 'Delete';
-    del.onclick = async () => {
-      await fetch('/delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
-      });
-      loadFiles();
-    };
-
-    div.appendChild(del);
-    list.appendChild(div);
+  uploadedFiles.forEach((name) => {
+    const row = document.createElement("div");
+    row.className = "file-entry";
+    row.innerHTML = `
+      ${name}
+      <button onclick="deleteFile('${name}')">Delete</button>
+    `;
+    list.appendChild(row);
   });
 }
 
-async function askSortir() {
-  const question = document.getElementById('question').value;
-
-  const res = await fetch('/ask', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt: question }),
+function deleteFile(name) {
+  fetch("/delete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fileName: name }),
+  }).then((res) => {
+    uploadedFiles = uploadedFiles.filter((f) => f !== name);
+    renderFileList();
   });
-
-  const answer = await res.text();
-  document.getElementById('response').textContent = answer;
 }
 
-window.onload = loadFiles;
+function askSortir() {
+  const prompt = document.getElementById("userPrompt").value;
+
+  fetch("/ask", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt }),
+  })
+    .then((res) => res.json())
+    .then((data) => {
+      document.getElementById("responseBox").innerText = data.answer || "No answer found.";
+    });
+}
