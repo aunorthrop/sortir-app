@@ -1,7 +1,7 @@
 {
   "name": "sortir-app",
   "version": "1.0.0",
-  "description": "Internal document question answering app",
+  "description": "Internal document question-answering assistant",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -15,6 +15,6 @@
     "multer": "^1.4.5-lts.1",
     "openai": "^4.20.0",
     "pdf-parse": "^1.1.1",
-    "lowdb": "^1.0.0"
+    "lowdb": "1.0.0"
   }
 }
