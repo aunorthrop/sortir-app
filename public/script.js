@@ -101,7 +101,12 @@ document.getElementById("askForm").addEventListener("submit", async (e) => {
       });
 
       const data = await response.json();
-      answerBox.innerText = data.answer || "No answer returned from AI.";
+      if (data.answer) {
+        answerBox.innerText = data.answer;
+      } else {
+        answerBox.innerText = "⚠️ No answer returned from AI.";
+        console.error("⚠️ No answer:", data);
+      }
     } catch (err) {
       console.error("Ask Sortir error:", err);
       answerBox.innerText = "An error occurred.";
