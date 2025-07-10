@@ -6,7 +6,7 @@ async function fetchFiles() {
 }
 
 function displayFiles(files) {
-  const list = document.getElementById("fileDisplay");
+  const list = document.getElementById("fileList");
   list.innerHTML = "";
 
   files.forEach((file) => {
@@ -15,6 +15,7 @@ function displayFiles(files) {
 
     const delBtn = document.createElement("button");
     delBtn.textContent = "Delete";
+    delBtn.className = "delete-button";
     delBtn.onclick = () => deleteFile(file);
 
     li.appendChild(delBtn);
@@ -64,7 +65,7 @@ async function askSortir() {
   });
 
   const data = await res.json();
-  document.getElementById("responseText").textContent = data.answer || data.error || "No response.";
+  document.getElementById("response").textContent = data.answer || data.error || "No response.";
 }
 
 window.onload = () => {
@@ -77,4 +78,8 @@ window.onload = () => {
     }
   }
   fetchFiles();
+};
+
+window.onerror = function (msg, src, lineno, colno, err) {
+  console.error("JS Error:", msg, "at", src + ":" + lineno);
 };
