@@ -1,109 +1,106 @@
-let uploadedFiles = [];
+const fileListKey = "uploadedFiles";
+
+function updateLocalFileList(fileName) {
+  const list = JSON.parse(localStorage.getItem(fileListKey)) || [];
+  list.push(fileName);
+  localStorage.setItem(fileListKey, JSON.stringify([...new Set(list)]));
+}
+
+function loadFilesFromLocalStorage() {
+  const list = JSON.parse(localStorage.getItem(fileListKey)) || [];
+  list.forEach(displayFileName);
+}
+
+document.addEventListener("DOMContentLoaded", loadFilesFromLocalStorage);
 
 document.getElementById("uploadForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const fileInput = document.getElementById("fileInput");
+
+  if (fileInput.files.length === 0) return alert("Please select a file to upload.");
+
   const formData = new FormData();
-
-  if (fileInput.files.length === 0) {
-    alert("Please select a file to upload.");
-    return;
-  }
-
-  const file = fileInput.files[0];
-  formData.append("file", file);
+  formData.append("file", fileInput.files[0]);
 
   try {
-    const response = await fetch("/upload", {
-      method: "POST",
-      body: formData,
-    });
-
-    const data = await response.json();
-    if (response.ok) {
-      alert("✅ File uploaded successfully");
-      uploadedFiles.push(data.fileName);
-      renderFileList();
+    const res = await fetch("/upload", { method: "POST", body: formData });
+    const data = await res.json();
+    if (res.ok) {
+      alert("✅ Uploaded");
+      updateLocalFileList(data.fileName);
+      displayFileName(data.fileName);
     } else {
-      alert(`❌ Upload failed: ${data.error || response.statusText}`);
+      alert(`❌ Upload failed: ${data.error || res.statusText}`);
     }
   } catch (err) {
-    alert("Upload error.");
     console.error(err);
-  } finally {
-    fileInput.value = '';
+    alert("Error uploading.");
   }
+
+  fileInput.value = "";
 });
 
 document.getElementById("askForm").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const question = document.getElementById("questionInput").value.trim();
-  const loadingIndicator = document.getElementById("loadingIndicator");
-  const answerBox = document.getElementById("answerBox");
+  const q = document.getElementById("questionInput").value;
+  const indicator = document.getElementById("loadingIndicator");
+  const box = document.getElementById("answerBox");
 
-  if (!question) {
-    alert("Please enter a question.");
-    return;
-  }
+  if (!q.trim()) return alert("Enter a question.");
 
-  loadingIndicator.style.display = "inline";
-  answerBox.innerText = "";
+  indicator.style.display = "inline";
+  box.innerText = "";
 
   try {
-    const response = await fetch("/ask", {
+    const res = await fetch("/ask", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question }),
+      body: JSON.stringify({ question: q })
     });
-
-    const data = await response.json();
-    answerBox.innerText = data.answer || "No answer returned";
+    const data = await res.json();
+    box.innerText = data.answer || "No answer.";
   } catch (err) {
-    answerBox.innerText = "Error asking question.";
-    console.error(err);
+    console.error("Ask error:", err);
+    box.innerText = "Error getting answer.";
   } finally {
-    loadingIndicator.style.display = "none";
+    indicator.style.display = "none";
   }
 });
 
 document.getElementById("fileListContainer").addEventListener("click", async (e) => {
   if (e.target.classList.contains("delete-button")) {
     try {
-      const response = await fetch("/delete", { method: "POST" });
-      if (response.ok) {
-        uploadedFiles = [];
-        renderFileList();
+      const res = await fetch("/delete", { method: "POST" });
+      if (res.ok) {
+        alert("✅ Deleted");
+        localStorage.removeItem(fileListKey);
+        document.getElementById("fileListContainer").innerHTML = "";
         document.getElementById("answerBox").innerText = "";
-        alert("✅ All files deleted.");
       } else {
-        const data = await response.json();
-        alert(`❌ Delete failed: ${data.error || response.statusText}`);
+        const err = await res.json();
+        alert(`❌ Delete failed: ${err.error}`);
       }
     } catch (err) {
-      alert("Error deleting file.");
-      console.error(err);
+      console.error("Delete error:", err);
+      alert("Delete failed.");
     }
   }
 });
 
-function renderFileList() {
+function displayFileName(name) {
   const container = document.getElementById("fileListContainer");
-  container.innerHTML = '';
+  const div = document.createElement("div");
+  div.className = "file-item";
 
-  uploadedFiles.forEach((fileName) => {
-    const div = document.createElement("div");
-    div.className = "file-item";
+  const span = document.createElement("span");
+  span.className = "file-name-display";
+  span.textContent = name;
 
-    const nameSpan = document.createElement("span");
-    nameSpan.className = "file-name-display";
-    nameSpan.textContent = fileName;
+  const btn = document.createElement("button");
+  btn.className = "delete-button";
+  btn.textContent = "Delete";
 
-    const deleteBtn = document.createElement("button");
-    deleteBtn.className = "delete-button";
-    deleteBtn.textContent = "Delete";
-
-    div.appendChild(nameSpan);
-    div.appendChild(deleteBtn);
-    container.appendChild(div);
-  });
+  div.appendChild(span);
+  div.appendChild(btn);
+  container.appendChild(div);
 }
