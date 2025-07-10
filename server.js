@@ -1,105 +1,59 @@
-const express = require("express");
-const fileUpload = require("express-fileupload");
-const fs = require("fs");
-const path = require("path");
-const pdfParse = require("pdf-parse");
-const OpenAI = require("openai");
-const cors = require("cors");
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const express = require('express');
+const fileUpload = require('express-fileupload');
+const cors = require('cors');
+const fs = require('fs');
+const pdfParse = require('pdf-parse');
+const { Configuration, OpenAIApi } = require('openai');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(express.json());
-app.use(express.static("public"));
 app.use(fileUpload());
+app.use(express.static('public'));
+app.use(express.json());
 
-const uploadsDir = path.join(__dirname, "uploads");
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir);
-}
+let allTextChunks = [];
 
-app.post("/upload", async (req, res) => {
-  if (!req.files || !req.files.pdf) {
-    return res.status(400).send("No file uploaded.");
+const configuration = new Configuration({
+  apiKey: process.env.OPENAI_API_KEY
+});
+const openai = new OpenAIApi(configuration);
+
+// Handle PDF upload
+app.post('/upload', async (req, res) => {
+  if (!req.files || !req.files.pdfFile) {
+    return res.status(400).send('No file uploaded.');
   }
 
-  const pdfFile = req.files.pdf;
-  const filePath = path.join(uploadsDir, pdfFile.name);
+  const file = req.files.pdfFile;
+  const data = await pdfParse(file.data);
 
-  try {
-    await pdfFile.mv(filePath);
-    res.send("File uploaded!");
-  } catch (err) {
-    console.error("Upload error:", err);
-    res.status(500).send("Upload failed.");
-  }
+  allTextChunks.push(data.text);
+  res.send({ message: 'PDF uploaded and processed.' });
 });
 
-app.get("/list", (req, res) => {
-  fs.readdir(uploadsDir, (err, files) => {
-    if (err) {
-      console.error("List error:", err);
-      return res.status(500).send("Failed to list files.");
-    }
-    res.json(files);
-  });
-});
-
-app.post("/delete", (req, res) => {
-  const filename = req.body.filename;
-  const filePath = path.join(uploadsDir, filename);
-
-  fs.unlink(filePath, (err) => {
-    if (err) {
-      console.error("Delete error:", err);
-      return res.status(500).send("Failed to delete file.");
-    }
-    res.send("File deleted!");
-  });
-});
-
-app.post("/ask", async (req, res) => {
+// Handle question asking
+app.post('/ask', async (req, res) => {
   const question = req.body.question;
-  const files = fs.readdirSync(uploadsDir);
-
-  let combinedText = "";
-
-  for (const file of files) {
-    try {
-      const filePath = path.join(uploadsDir, file);
-      const dataBuffer = fs.readFileSync(filePath);
-      const pdfData = await pdfParse(dataBuffer);
-      combinedText += `\n---\n${file}:\n${pdfData.text}`;
-    } catch (err) {
-      console.error(`Error parsing ${file}:`, err.message);
-    }
-  }
+  const combinedText = allTextChunks.join('\n\n');
 
   try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4",
+    const completion = await openai.createChatCompletion({
+      model: 'gpt-4',
       messages: [
-        {
-          role: "system",
-          content: "You are a helpful assistant that answers questions based only on the provided document text.",
-        },
-        {
-          role: "user",
-          content: `Here are the documents:\n${combinedText}\n\nQuestion: ${question}`,
-        },
+        { role: 'system', content: 'You are a helpful assistant that answers questions based only on the uploaded business documents.' },
+        { role: 'user', content: `Documents:\n${combinedText}\n\nQuestion: ${question}` }
       ],
-      temperature: 0.2,
+      temperature: 0.3,
+      max_tokens: 500
     });
 
-    res.json({ answer: response.choices[0].message.content.trim() });
+    const answer = completion.data.choices[0].message.content.trim();
+    res.json({ answer });
   } catch (err) {
-    console.error("OpenAI error:", err);
-    res.status(500).send("Failed to generate answer.");
+    console.error(err);
+    res.status(500).send('Error processing question.');
   }
 });
 
