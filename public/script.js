@@ -1,5 +1,6 @@
 const fileInput = document.getElementById("fileInput");
 const deleteFileBtn = document.getElementById("deleteFileBtn");
+const fileStatus = document.getElementById("fileStatus");
 const downloadLink = document.getElementById("downloadLink");
 const askBtn = document.getElementById("askBtn");
 const questionInput = document.getElementById("questionInput");
@@ -9,7 +10,6 @@ const closeModal = document.getElementById("closeModal");
 
 let uploadedFile = null;
 
-// Upload file
 fileInput.addEventListener("change", () => {
   const file = fileInput.files[0];
   const reader = new FileReader();
@@ -19,6 +19,7 @@ fileInput.addEventListener("change", () => {
     const blob = b64toBlob(uploadedFile, "application/pdf");
     const url = URL.createObjectURL(blob);
     downloadLink.innerHTML = `<a href="${url}" download="${file.name}">Download ${file.name}</a>`;
+    fileStatus.innerText = `Loaded: ${file.name}`;
   };
 
   if (file) {
@@ -26,16 +27,14 @@ fileInput.addEventListener("change", () => {
   }
 });
 
-// Delete file
 deleteFileBtn.addEventListener("click", () => {
   uploadedFile = null;
   downloadLink.innerHTML = "";
+  fileStatus.innerText = "No file uploaded.";
 });
 
-// Ask question
 askBtn.addEventListener("click", async () => {
   const question = questionInput.value.trim();
-
   if (!question || !uploadedFile) return;
 
   const response = await fetch("/ask", {
@@ -53,19 +52,17 @@ askBtn.addEventListener("click", async () => {
   responseModal.classList.remove("hidden");
 });
 
-// Close modal
 closeModal.addEventListener("click", () => {
   responseModal.classList.add("hidden");
 });
 
-// Convert base64 to Blob
 function b64toBlob(b64Data, contentType = "", sliceSize = 512) {
   const byteCharacters = atob(b64Data);
   const byteArrays = [];
 
   for (let offset = 0; offset < byteCharacters.length; offset += sliceSize) {
     const slice = byteCharacters.slice(offset, offset + sliceSize);
-    const byteNumbers = Array.from(slice).map((char) => char.charCodeAt(0));
+    const byteNumbers = Array.from(slice).map(c => c.charCodeAt(0));
     byteArrays.push(new Uint8Array(byteNumbers));
   }
 
