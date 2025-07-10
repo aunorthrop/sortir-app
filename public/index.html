@@ -3,23 +3,32 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Sortir AI</title>
-  <link rel="stylesheet" href="style.css"/>
+  <title>Sortir – Internal Docs Assistant</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <img src="logo.png" class="logo" alt="Sortir Logo" />
-
   <div class="container">
-    <h2>Upload Documents</h2>
-    <input type="file" id="fileInput" />
-    <button onclick="uploadFile()">Upload</button>
+    <header>
+      <img src="logo.png" alt="Sortir Logo" class="logo"/>
+      <h1>Sortir</h1>
+      <p>Ask questions about your internal documents</p>
+    </header>
 
-    <ul id="fileList" class="file-list"></ul>
+    <section id="upload-section">
+      <input type="file" id="fileInput" />
+      <button onclick="uploadFile()">Upload Document</button>
+    </section>
 
-    <input type="text" id="questionInput" placeholder="Ask Sortir a question..." />
-    <button onclick="askSortir()">Ask Sortir</button>
+    <section id="file-list">
+      <h2>Your Vault</h2>
+      <ul id="fileDisplay"></ul>
+    </section>
 
-    <div id="response" class="response-box"></div>
+    <section id="ask-section">
+      <textarea id="questionInput" placeholder="Ask Sortir..."></textarea>
+      <button onclick="askSortir()">Ask Sortir</button>
+      <p id="responseText"></p>
+    </section>
   </div>
 
   <script src="script.js"></script>
