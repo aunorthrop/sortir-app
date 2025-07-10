@@ -8,7 +8,7 @@ const openai = new OpenAI({
 });
 
 app.use(express.static("public"));
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json({ limit: "20mb" }));
 
 app.post("/ask", async (req, res) => {
   try {
@@ -25,6 +25,12 @@ app.post("/ask", async (req, res) => {
       const buffer = Buffer.from(base64Data, "base64");
       const data = await pdf(buffer);
       combinedText += "\n\n" + data.text;
+    }
+
+    // Limit to ~12,000 tokens worth of characters
+    const maxLength = 48000;
+    if (combinedText.length > maxLength) {
+      combinedText = combinedText.slice(0, maxLength);
     }
 
     const chatCompletion = await openai.chat.completions.create({
@@ -44,14 +50,15 @@ app.post("/ask", async (req, res) => {
     });
 
     const answer = chatCompletion?.choices?.[0]?.message?.content;
+
     if (!answer) {
-      console.error("No response from OpenAI:", chatCompletion);
+      console.error("⚠️ No usable response from OpenAI. Full response:", JSON.stringify(chatCompletion, null, 2));
       return res.status(500).json({ error: "No answer returned from OpenAI." });
     }
 
     res.json({ answer });
   } catch (error) {
-    console.error("Error in /ask route:", error);
+    console.error("❌ Error in /ask route:", error);
     res.status(500).json({ error: "Failed to get answer from OpenAI." });
   }
 });
