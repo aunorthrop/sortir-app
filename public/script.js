@@ -85,10 +85,10 @@ document.getElementById("askForm").addEventListener("submit", async (e) => {
     const files = getAll.result;
     if (!files || files.length === 0) {
       loadingIndicator.style.display = "none";
-      return alert("Please upload a PDF first.");
+      return alert("Please upload at least one PDF first.");
     }
 
-    const latestFile = files[files.length - 1];
+    const allBase64PDFs = files.map(file => file.content);
 
     try {
       const response = await fetch("/ask", {
@@ -96,7 +96,7 @@ document.getElementById("askForm").addEventListener("submit", async (e) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           question: question,
-          base64pdf: latestFile.content,
+          pdfs: allBase64PDFs,
         }),
       });
 
