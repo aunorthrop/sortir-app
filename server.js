@@ -27,6 +27,7 @@ app.post("/ask", async (req, res) => {
     console.log(`📥 Received ${pdfs.length} PDFs and question: ${question}`);
 
     let combinedText = "";
+    let parsedCount = 0;
 
     for (let i = 0; i < pdfs.length; i++) {
       const base64pdf = pdfs[i];
@@ -41,21 +42,28 @@ app.post("/ask", async (req, res) => {
       try {
         const data = await pdf(buffer);
         const fileName = filenames?.[i] || `Document ${i + 1}`;
-        combinedText += `\n\n--- START OF DOCUMENT ${i + 1}: ${fileName} ---\n${data.text}\n--- END OF DOCUMENT ${i + 1} ---\n`;
-        console.log(`✅ Parsed ${fileName}, length: ${data.text.length}`);
+        const length = data.text.trim().length;
+
+        console.log(`✅ Parsed ${fileName}, length: ${length}`);
+        if (length > 0) {
+          combinedText += `\n\n--- START OF DOCUMENT ${i + 1}: ${fileName} ---\n${data.text.trim()}\n--- END OF DOCUMENT ${i + 1} ---\n`;
+          parsedCount++;
+        } else {
+          console.warn(`⚠️ Skipped ${fileName} — no extractable text (possibly scanned image or empty PDF)`);
+        }
       } catch (parseError) {
         console.error(`❌ Error parsing PDF ${i + 1}:`, parseError);
       }
+    }
+
+    if (parsedCount === 0) {
+      return res.status(500).json({ error: "None of the uploaded documents contained extractable text. Please use text-based PDFs." });
     }
 
     const maxLength = 48000;
     if (combinedText.length > maxLength) {
       console.warn(`⚠️ Truncating combined text (${combinedText.length}) to ${maxLength}`);
       combinedText = combinedText.slice(0, maxLength);
-    }
-
-    if (!combinedText.trim()) {
-      return res.status(500).json({ error: "No text extracted from PDFs." });
     }
 
     const chatCompletion = await openai.chat.completions.create({
