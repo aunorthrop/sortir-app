@@ -2,20 +2,19 @@ const express = require("express");
 const multer = require("multer");
 const fs = require("fs");
 const pdf = require("pdf-parse");
-const { OpenAI } = require("openai");
+const { Configuration, OpenAIApi } = require("openai");
 const path = require("path");
 
+require("dotenv").config();
+
 const app = express();
-// Configure multer to store files in memory temporarily
-// This might help with very subtle file access timing issues,
-// but the 'dest' property should also work fine.
-// Using memory storage means no temporary file cleanup needed explicitly.
 const upload = multer({ storage: multer.memoryStorage() });
 
-
-const openai = new OpenAI({
+const configuration = new Configuration({
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+const openai = new OpenAIApi(configuration);
 
 app.use(express.static("public"));
 app.use(express.json());
@@ -29,19 +28,10 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       return res.status(400).json({ error: "No file uploaded." });
     }
 
-    // If using memory storage, req.file.buffer contains the file data
-    const dataBuffer = req.file.buffer; 
+    const dataBuffer = req.file.buffer;
     const data = await pdf(dataBuffer);
     extractedText = data.text;
-    uploadedFileName = req.file.originalname; 
-
-    // If using 'dest' property for multer (e.g., multer({ dest: "uploads/" })), 
-    // you would need to read the file from disk and then unlink it:
-    // const dataBuffer = fs.readFileSync(req.file.path);
-    // const data = await pdf(dataBuffer);
-    // extractedText = data.text;
-    // uploadedFileName = req.file.originalname;
-    // fs.unlinkSync(req.file.path); // delete file after reading
+    uploadedFileName = req.file.originalname;
 
     res.json({ message: "File uploaded successfully", fileName: uploadedFileName });
   } catch (error) {
@@ -59,11 +49,11 @@ app.post("/ask", async (req, res) => {
     }
 
     if (!question || question.trim() === "") {
-        return res.json({ answer: "Please provide a question." });
+      return res.json({ answer: "Please provide a question." });
     }
 
-    const chatCompletion = await openai.chat.completions.create({
-      model: "gpt-4o",
+    const chatCompletion = await openai.createChatCompletion({
+      model: "gpt-4",
       messages: [
         {
           role: "system",
@@ -78,7 +68,7 @@ app.post("/ask", async (req, res) => {
       max_tokens: 500,
     });
 
-    const answer = chatCompletion.choices[0].message.content || "No answer returned";
+    const answer = chatCompletion.data.choices[0].message.content || "No answer returned";
     res.json({ answer });
   } catch (error) {
     console.error("Error getting answer from OpenAI:", error);
@@ -87,15 +77,14 @@ app.post("/ask", async (req, res) => {
 });
 
 app.post("/delete", (req, res) => {
-    console.log("DELETE request received at /delete endpoint."); 
-    try {
-        extractedText = "";
-        uploadedFileName = "";
-        res.json({ message: "File deleted successfully." });
-    } catch (error) {
-        console.error("Error deleting file:", error);
-        res.status(500).json({ error: "Failed to delete file." });
-    }
+  try {
+    extractedText = "";
+    uploadedFileName = "";
+    res.json({ message: "File deleted successfully." });
+  } catch (error) {
+    console.error("Error deleting file:", error);
+    res.status(500).json({ error: "Failed to delete file." });
+  }
 });
 
 const PORT = process.env.PORT || 3000;
