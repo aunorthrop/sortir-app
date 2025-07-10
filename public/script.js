@@ -1,62 +1,29 @@
-let uploadedFiles = [];
-
-function uploadPDF() {
-  const input = document.getElementById("pdfInput");
-  const file = input.files[0];
-  if (!file) return;
-
+document.getElementById("uploadForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const fileInput = document.getElementById("fileInput");
   const formData = new FormData();
-  formData.append("pdf", file);
+  formData.append("file", fileInput.files[0]);
 
-  fetch("/upload", {
+  await fetch("/upload", {
     method: "POST",
     body: formData,
-  })
-    .then((res) => res.json())
-    .then((data) => {
-      if (data.success) {
-        uploadedFiles.push(file.name);
-        renderFileList();
-      }
-    });
-}
-
-function renderFileList() {
-  const list = document.getElementById("fileList");
-  list.innerHTML = "";
-
-  uploadedFiles.forEach((name) => {
-    const row = document.createElement("div");
-    row.className = "file-entry";
-    row.innerHTML = `
-      ${name}
-      <button onclick="deleteFile('${name}')">Delete</button>
-    `;
-    list.appendChild(row);
   });
-}
 
-function deleteFile(name) {
-  fetch("/delete", {
+  alert("✅ File uploaded successfully");
+});
+
+document.getElementById("askForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const question = document.getElementById("questionInput").value;
+
+  const response = await fetch("/ask", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ fileName: name }),
-  }).then((res) => {
-    uploadedFiles = uploadedFiles.filter((f) => f !== name);
-    renderFileList();
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ question }),
   });
-}
 
-function askSortir() {
-  const prompt = document.getElementById("userPrompt").value;
-
-  fetch("/ask", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt }),
-  })
-    .then((res) => res.json())
-    .then((data) => {
-      document.getElementById("responseBox").innerText = data.answer || "No answer found.";
-    });
-}
+  const data = await response.json();
+  document.getElementById("answerBox").innerText = data.answer || "No answer returned.";
+});
