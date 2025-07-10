@@ -1,6 +1,5 @@
 let db;
 
-// Open (or create) IndexedDB
 const request = indexedDB.open("SortirVault", 1);
 request.onerror = (e) => console.error("IndexedDB error:", e);
 request.onsuccess = (e) => {
@@ -49,7 +48,8 @@ function displayAllFiles() {
       deleteButton.textContent = "Delete";
       deleteButton.addEventListener("click", () => {
         const delTx = db.transaction(["files"], "readwrite");
-        delTx.objectStore("files").delete(cursor.value.name);
+        const store = delTx.objectStore("files");
+        store.delete(cursor.value.name);
         delTx.oncomplete = displayAllFiles;
       });
 
@@ -61,3 +61,52 @@ function displayAllFiles() {
     }
   };
 }
+
+// 🔁 Ask Sortir button logic: sends question + latest PDF to backend
+document.getElementById("askForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const question = document.getElementById("questionInput").value.trim();
+  const loadingIndicator = document.getElementById("loadingIndicator");
+  const answerBox = document.getElementById("answerBox");
+
+  if (!question) return alert("Please enter a question.");
+
+  loadingIndicator.style.display = "inline";
+  answerBox.innerText = "";
+
+  // Get the latest stored file from IndexedDB
+  const tx = db.transaction(["files"], "readonly");
+  const store = tx.objectStore("files");
+  const requestAll = store.getAll();
+  requestAll.onsuccess = async () => {
+    const files = requestAll.result;
+    if (!files || files.length === 0) {
+      loadingIndicator.style.display = "none";
+      return alert("Please upload a PDF first.");
+    }
+
+    // We'll just use the most recently added file
+    const latestFile = files[files.length - 1];
+
+    try {
+      const response = await fetch("/ask", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          question: question,
+          base64pdf: latestFile.content
+        })
+      });
+
+      const data = await response.json();
+      answerBox.innerText = data.answer || "No answer returned";
+    } catch (err) {
+      console.error("Error asking Sortir:", err);
+      answerBox.innerText = "An error occurred.";
+    } finally {
+      loadingIndicator.style.display = "none";
+    }
+  };
+});
