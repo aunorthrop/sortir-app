@@ -3,42 +3,107 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Sortir</title>
-  <link rel="stylesheet" href="style.css"/>
+  <title>Reset Password – Sortir</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body {
+      font-family: sans-serif;
+      background-color: #282c34;
+      color: #f8f8f2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+    }
+
+    .reset-container {
+      background-color: #3a3f4c;
+      padding: 30px;
+      border-radius: 10px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    h2 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: #00ffff;
+    }
+
+    input {
+      width: calc(100% - 20px);
+      padding: 10px;
+      margin-bottom: 15px;
+      border: 1px solid #00ffff;
+      border-radius: 5px;
+      background-color: #4b5262;
+      color: #f8f8f2;
+      box-sizing: border-box;
+    }
+
+    button {
+      background-color: #00ffff;
+      color: #282c34;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 5px;
+      cursor: pointer;
+      width: 100%;
+      font-size: 1em;
+      transition: background-color 0.3s ease;
+    }
+
+    button:hover {
+      background-color: #00ccff;
+    }
+
+    .message {
+      margin-top: 15px;
+      text-align: center;
+    }
+  </style>
 </head>
 <body>
-  <img src="sortir-logo.png" id="logo" />
-  <div id="auth-container">
-    <form id="signup-form">
-      <h2>Sign Up</h2>
-      <input type="email" placeholder="Email" id="signup-email" required />
-      <input type="password" placeholder="Password" id="signup-password" required />
-      <button type="submit">Sign Up</button>
-      <div id="signup-error"></div>
-    </form>
-    <form id="login-form">
-      <h2>Login</h2>
-      <input type="email" placeholder="Email" id="login-email" required />
-      <input type="password" placeholder="Password" id="login-password" required />
-      <button type="submit">Login</button>
-      <div id="login-error"></div>
-      <a href="/reset-request">Forgot Password?</a>
-    </form>
+  <div class="reset-container">
+    <h2>Reset Your Password</h2>
+    <input type="password" id="newPassword" placeholder="New Password" />
+    <input type="password" id="confirmPassword" placeholder="Confirm Password" />
+    <button onclick="resetPassword()">Reset Password</button>
+    <div class="message" id="resetMessage"></div>
   </div>
-  <div id="file-section" style="display:none;">
-    <h2>Your Vault</h2>
-    <form id="upload-form">
-      <input type="file" id="fileInput" />
-      <button type="submit">Upload</button>
-    </form>
-    <div id="fileList"></div>
-    <form id="ask-form">
-      <input type="text" id="question" placeholder="Ask Sortir..." />
-      <button type="submit">Ask</button>
-    </form>
-    <div id="response"></div>
-    <button onclick="logout()">Logout</button>
-  </div>
-  <script src="script.js"></script>
+
+  <script>
+    async function resetPassword() {
+      const newPassword = document.getElementById("newPassword").value;
+      const confirmPassword = document.getElementById("confirmPassword").value;
+      const token = new URLSearchParams(window.location.search).get("token");
+      const messageDiv = document.getElementById("resetMessage");
+
+      if (!token) {
+        messageDiv.innerText = "Invalid or missing token.";
+        return;
+      }
+
+      if (newPassword !== confirmPassword) {
+        messageDiv.innerText = "Passwords do not match.";
+        return;
+      }
+
+      const response = await fetch("/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, password: newPassword }),
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        messageDiv.innerText = "Password reset successful!";
+      } else {
+        messageDiv.innerText = data.error || "Failed to reset password.";
+      }
+    }
+  </script>
 </body>
 </html>
