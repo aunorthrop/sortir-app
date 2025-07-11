@@ -1,99 +1,172 @@
-const express = require("express");
-const multer = require("multer");
-const fs = require("fs");
-const path = require("path");
-const pdfParse = require("pdf-parse");
-const session = require("express-session");
-const FileStore = require("session-file-store")(session);
-const nodemailer = require("nodemailer");
+const express = require('express');
+const multer = require('multer');
+const fs = require('fs');
+const path = require('path');
+const pdfParse = require('pdf-parse');
+const session = require('express-session');
+const nodemailer = require('nodemailer');
+const { Configuration, OpenAIApi } = require('openai');
+const bodyParser = require('body-parser');
+const bcrypt = require('bcrypt');
+
+require('dotenv').config();
+
 const app = express();
-const PORT = process.env.PORT || 10000;
+const port = process.env.PORT || 3000;
 
-app.use(express.static("public"));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+const users = {}; // Temporary user store
 
-app.use(
-  session({
-    store: new FileStore({ path: "./sessions" }),
-    secret: "keyboard cat",
-    resave: false,
-    saveUninitialized: true,
-  })
-);
+// Setup session
+app.use(session({
+  secret: 'sortir-secret',
+  resave: false,
+  saveUninitialized: false,
+}));
 
-const userDB = {};
+// Middleware
+app.use(express.static('public'));
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
+// OpenAI setup
+const configuration = new Configuration({
+  apiKey: process.env.OPENAI_API_KEY,
 });
+const openai = new OpenAIApi(configuration);
 
-const upload = multer({ dest: "uploads/" });
-
-app.post("/signup", (req, res) => {
-  const { email, password } = req.body;
-  if (userDB[email]) {
-    return res.status(409).send("Email already in use.");
+// Multer storage
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const userDir = path.join(__dirname, 'uploads', req.session.user || 'guest');
+    fs.mkdirSync(userDir, { recursive: true });
+    cb(null, userDir);
+  },
+  filename: (req, file, cb) => {
+    cb(null, file.originalname);
   }
-  userDB[email] = password;
+});
+const upload = multer({ storage });
 
-  const mailOptions = {
-    from: process.env.EMAIL_USER,
-    to: email,
-    subject: "Welcome to ShortGear!",
-    text: "Thank you for signing up.",
-  };
+// Signup
+app.post('/signup', async (req, res) => {
+  const { email, password } = req.body;
+  if (users[email]) {
+    return res.status(400).json({ message: 'Email already in use' });
+  }
 
-  transporter.sendMail(mailOptions, (err, info) => {
-    if (err) console.error("Email error:", err);
-    else console.log("Confirmation sent:", info.response);
-  });
+  const hashedPassword = await bcrypt.hash(password, 10);
+  users[email] = { password: hashedPassword };
 
   req.session.user = email;
-  res.sendStatus(200);
-});
 
-app.post("/login", (req, res) => {
-  const { email, password } = req.body;
-  if (userDB[email] === password) {
-    req.session.user = email;
-    res.sendStatus(200);
-  } else {
-    res.status(401).send("Invalid credentials.");
+  // Send confirmation email
+  try {
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.SORTIR_EMAIL,
+        pass: process.env.SORTIR_PASS
+      }
+    });
+
+    await transporter.sendMail({
+      from: `"Sortir Vault" <${process.env.SORTIR_EMAIL}>`,
+      to: email,
+      subject: "Welcome to Sortir Vault",
+      text: `Hi there! You've successfully created an account with Sortir Vault.`,
+    });
+
+    res.json({ message: 'Signup successful and email sent' });
+  } catch (err) {
+    console.error('Email error:', err);
+    res.json({ message: 'Signup successful but email failed to send' });
   }
 });
 
-app.get("/check-session", (req, res) => {
-  if (req.session.user) res.json({ loggedIn: true, user: req.session.user });
-  else res.json({ loggedIn: false });
+// Login
+app.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+  const user = users[email];
+  if (!user) return res.status(400).json({ message: 'User not found' });
+
+  const valid = await bcrypt.compare(password, user.password);
+  if (!valid) return res.status(401).json({ message: 'Invalid credentials' });
+
+  req.session.user = email;
+  res.json({ message: 'Login successful' });
 });
 
-app.post("/upload", upload.single("file"), async (req, res) => {
-  const userDir = path.join(__dirname, "uploads", req.session.user || "default");
-  fs.mkdirSync(userDir, { recursive: true });
-
-  const filePath = path.join(userDir, req.file.originalname);
-  fs.renameSync(req.file.path, filePath);
-
-  res.sendStatus(200);
+// Upload
+app.post('/upload', upload.single('file'), (req, res) => {
+  res.json({ message: 'File uploaded successfully' });
 });
 
-app.get("/files", (req, res) => {
-  const userDir = path.join(__dirname, "uploads", req.session.user || "default");
-  if (!fs.existsSync(userDir)) return res.json([]);
-  const files = fs.readdirSync(userDir);
-  res.json(files);
+// List files
+app.get('/list-files', (req, res) => {
+  const user = req.session.user || 'guest';
+  const userDir = path.join(__dirname, 'uploads', user);
+  fs.readdir(userDir, (err, files) => {
+    if (err) return res.json([]);
+    res.json(files);
+  });
 });
 
-app.delete("/delete/:file", (req, res) => {
-  const userDir = path.join(__dirname, "uploads", req.session.user || "default");
-  const filePath = path.join(userDir, req.params.file);
-  fs.unlinkSync(filePath);
-  res.sendStatus(200);
+// Delete file
+app.post('/delete-file', (req, res) => {
+  const { filename } = req.body;
+  const user = req.session.user || 'guest';
+  const userDir = path.join(__dirname, 'uploads', user);
+  const filePath = path.join(userDir, filename);
+  fs.unlink(filePath, err => {
+    if (err) return res.status(500).json({ message: 'Error deleting file' });
+    res.json({ message: 'File deleted' });
+  });
 });
 
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// Ask question
+app.post('/ask', async (req, res) => {
+  const user = req.session.user || 'guest';
+  const userDir = path.join(__dirname, 'uploads', user);
+  const { question } = req.body;
+
+  fs.readdir(userDir, async (err, files) => {
+    if (err || files.length === 0) {
+      return res.status(400).json({ answer: 'No documents found.' });
+    }
+
+    let fullText = '';
+    for (const file of files) {
+      const filePath = path.join(userDir, file);
+      try {
+        const data = fs.readFileSync(filePath);
+        const pdfText = await pdfParse(data);
+        fullText += pdfText.text + '\n\n';
+      } catch (e) {
+        console.error(`Error parsing ${file}:`, e);
+      }
+    }
+
+    try {
+      const completion = await openai.createChatCompletion({
+        model: 'gpt-3.5-turbo',
+        messages: [
+          { role: 'system', content: 'You are a helpful assistant trained to answer questions based on uploaded business documents.' },
+          { role: 'user', content: `${question}\n\nContext:\n${fullText}` }
+        ],
+        temperature: 0.5,
+        max_tokens: 500,
+      });
+
+      const answer = completion.data.choices[0].message.content.trim();
+      res.json({ answer });
+    } catch (error) {
+      console.error('OpenAI error:', error);
+      res.status(500).json({ answer: 'Error generating answer.' });
+    }
+  });
+});
+
+// Start server
+app.listen(port, () => {
+  console.log(`Sortir Vault live on port ${port}`);
+});
