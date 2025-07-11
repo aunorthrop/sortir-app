@@ -5,22 +5,22 @@ const path = require("path");
 const pdfParse = require("pdf-parse");
 const cors = require("cors");
 const bcrypt = require("bcrypt");
+const crypto = require("crypto");
 const session = require("express-session");
 const MemoryStore = require("memorystore")(session);
+const nodemailer = require("nodemailer");
 require("dotenv").config();
 const { OpenAI } = require("openai");
 
 const app = express();
 const port = process.env.PORT || 3000;
-
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const USERS_FILE = path.join(__dirname, "users.json");
 
+const USERS_FILE = path.join(__dirname, "users.json");
 function loadUsers() {
   if (!fs.existsSync(USERS_FILE)) return {};
   return JSON.parse(fs.readFileSync(USERS_FILE));
 }
-
 function saveUsers(users) {
   fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
 }
@@ -33,20 +33,43 @@ app.use(session({
   store: new MemoryStore({ checkPeriod: 86400000 }),
   secret: "sortir-secret",
   resave: false,
-  saveUninitialized: false
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    secure: true,
+    sameSite: "none",
+    maxAge: 86400000
+  }
 }));
 
-// --- AUTH ROUTES ---
+// Nodemailer setup
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
+
+// -- AUTH --
 app.post("/signup", async (req, res) => {
   const { email, password } = req.body;
   const users = loadUsers();
-  if (users[email]) {
-    return res.status(400).json({ error: "Email already registered." });
-  }
+  if (users[email]) return res.status(400).json({ error: "Email already registered." });
+
   const hashed = await bcrypt.hash(password, 10);
   users[email] = { password: hashed };
   saveUsers(users);
   req.session.user = email;
+
+  // Send confirmation email
+  await transporter.sendMail({
+    from: process.env.EMAIL_FROM,
+    to: email,
+    subject: "Welcome to Sortir 🎉",
+    text: "Thanks for signing up! You can now log in and start uploading your business files securely.",
+  });
+
   res.json({ success: true });
 });
 
@@ -65,12 +88,51 @@ app.post("/logout", (req, res) => {
   req.session.destroy(() => res.json({ success: true }));
 });
 
+app.post("/forgot-password", (req, res) => {
+  const { email } = req.body;
+  const users = loadUsers();
+  if (!users[email]) return res.status(400).json({ error: "No account found." });
+
+  const token = crypto.randomBytes(32).toString("hex");
+  const expire = Date.now() + 1000 * 60 * 15;
+  users[email].resetToken = token;
+  users[email].resetExpire = expire;
+  saveUsers(users);
+
+  const resetLink = `${process.env.BASE_URL}/reset-password.html?token=${token}&email=${encodeURIComponent(email)}`;
+  transporter.sendMail({
+    from: process.env.EMAIL_FROM,
+    to: email,
+    subject: "Sortir Password Reset",
+    text: `Click the link to reset your password: ${resetLink}\nThis link expires in 15 minutes.`
+  });
+
+  res.json({ success: true });
+});
+
+app.post("/reset-password", async (req, res) => {
+  const { email, token, newPassword } = req.body;
+  const users = loadUsers();
+  const user = users[email];
+  if (!user || user.resetToken !== token || Date.now() > user.resetExpire) {
+    return res.status(400).json({ error: "Invalid or expired token." });
+  }
+
+  const hashed = await bcrypt.hash(newPassword, 10);
+  users[email].password = hashed;
+  delete users[email].resetToken;
+  delete users[email].resetExpire;
+  saveUsers(users);
+
+  res.json({ success: true });
+});
+
+// -- FILE HANDLING --
 function ensureAuth(req, res, next) {
   if (!req.session.user) return res.status(401).json({ error: "Not logged in" });
   next();
 }
 
-// --- FILE HANDLING ---
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const userDir = path.join(__dirname, "uploads", req.session.user);
@@ -120,13 +182,14 @@ app.post("/ask", ensureAuth, async (req, res) => {
   let fullText = "";
 
   for (const file of files) {
-    const filePath = path.join(userDir, file);
-    const dataBuffer = fs.readFileSync(filePath);
     try {
+      const filePath = path.join(userDir, file);
+      const dataBuffer = fs.readFileSync(filePath);
       const data = await pdfParse(dataBuffer);
+      if (!data.text.trim()) continue;
       fullText += `\n\n--- ${file} ---\n\n${data.text}`;
     } catch (err) {
-      console.error(`Error parsing ${file}:`, err);
+      console.error(`Failed to parse ${file}:`, err.message);
     }
   }
 
@@ -148,5 +211,5 @@ app.post("/ask", ensureAuth, async (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`✅ Sortir is running on http://localhost:${port}`);
+  console.log(`✅ Sortir server running on port ${port}`);
 });
