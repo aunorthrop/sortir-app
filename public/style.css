@@ -1,22 +1,22 @@
 body {
-  margin: 0;
-  font-family: sans-serif;
   background-color: #1a1a1a;
-  color: white;
+  color: #ffffff;
+  font-family: Arial, sans-serif;
   text-align: center;
+  padding: 20px;
 }
 
 .logo {
-  width: 250px;
-  margin: 20px auto;
+  width: 200px;
+  margin: 0 auto 20px;
   display: block;
 }
 
 #auth-section form {
-  background-color: #2a2a2a;
+  background-color: #1e1e1e;
   padding: 20px;
   border-radius: 8px;
-  margin: 20px auto;
+  margin: 10px auto;
   width: 300px;
 }
 
@@ -25,30 +25,31 @@ body {
   width: 100%;
   padding: 10px;
   margin: 5px 0;
+  border-radius: 6px;
 }
 
-button {
-  background-color: cyan;
+#auth-section button {
+  background-color: #00d6f7;
   border: none;
+  color: #000;
   font-weight: bold;
-  cursor: pointer;
+}
+
+#auth-message {
+  color: red;
+  margin-top: 10px;
 }
 
 #upload-form,
-#question {
-  margin: 20px;
-}
-
-#file-list div {
-  margin: 10px 0;
-  padding: 5px;
-  background-color: #2a2a2a;
+#file-list {
+  margin-top: 20px;
 }
 
 #answer {
-  background-color: #2a2a2a;
-  padding: 15px;
   margin-top: 20px;
-  white-space: pre-wrap;
+  padding: 15px;
+  background-color: #2a2a2a;
+  border-radius: 5px;
   text-align: left;
+  white-space: pre-wrap;
 }
