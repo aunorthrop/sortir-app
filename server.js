@@ -5,196 +5,146 @@ const fs = require('fs');
 const path = require('path');
 const pdfParse = require('pdf-parse');
 const nodemailer = require('nodemailer');
-const crypto = require('crypto');
 const bcrypt = require('bcrypt');
-const bodyParser = require('body-parser');
-const { OpenAI } = require('openai');
-
+const { Configuration, OpenAIApi } = require('openai');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const USERS_FILE = './users.json';
+const RESET_TOKENS_FILE = './resetTokens.json';
 
 app.use(express.static('public'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.use(session({
-  secret: 'sortir-secret',
-  resave: false,
-  saveUninitialized: true
-}));
+app.use(
+  session({
+    secret: 'sortir-secret',
+    resave: false,
+    saveUninitialized: true,
+  })
+);
 
-const USERS_FILE = './users.json';
-const RESET_TOKENS_FILE = './resetTokens.json';
-const FILES_DIR = './uploads';
-
-if (!fs.existsSync(FILES_DIR)) fs.mkdirSync(FILES_DIR);
-
-// OpenAI setup
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
-
-// Email transporter
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
-
-// Load or create storage files
-const loadJSON = (file) => fs.existsSync(file) ? JSON.parse(fs.readFileSync(file)) : {};
-const saveJSON = (file, data) => fs.writeFileSync(file, JSON.stringify(data, null, 2));
+// Helper: read/write JSON
+const readJSON = (file) => JSON.parse(fs.readFileSync(file, 'utf8'));
+const writeJSON = (file, data) => fs.writeFileSync(file, JSON.stringify(data, null, 2));
 
 // Signup
 app.post('/signup', async (req, res) => {
   const { email, password } = req.body;
-  const users = loadJSON(USERS_FILE);
-  if (users[email]) return res.status(400).send('Email already registered.');
+  const users = readJSON(USERS_FILE);
+
+  if (users.find((u) => u.email === email)) {
+    return res.status(400).json({ error: 'Email already in use.' });
+  }
 
   const hashed = await bcrypt.hash(password, 10);
-  users[email] = { password: hashed };
-  saveJSON(USERS_FILE, users);
+  users.push({ email, password: hashed });
+  writeJSON(USERS_FILE, users);
 
-  transporter.sendMail({
-    from: process.env.EMAIL_USER,
-    to: email,
-    subject: 'Welcome to Sortir',
-    text: 'Thanks for signing up for Sortir!'
+  // Confirmation email
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
   });
 
-  res.status(200).send('Signup successful');
+  await transporter.sendMail({
+    from: process.env.EMAIL_USER,
+    to: email,
+    subject: 'Welcome to Sortir!',
+    text: 'Your Sortir account was successfully created.',
+  });
+
+  req.session.user = email;
+  res.status(200).json({ success: true });
 });
 
 // Login
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
-  const users = loadJSON(USERS_FILE);
-  const user = users[email];
-  if (!user) return res.status(401).send('Incorrect credentials.');
-
-  const valid = await bcrypt.compare(password, user.password);
-  if (!valid) return res.status(401).send('Incorrect credentials.');
+  const users = readJSON(USERS_FILE);
+  const user = users.find((u) => u.email === email);
+  if (!user || !(await bcrypt.compare(password, user.password))) {
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
 
   req.session.user = email;
-  res.status(200).send('Login successful');
+  res.status(200).json({ success: true });
 });
 
-// Logout
-app.post('/logout', (req, res) => {
-  req.session.destroy(() => res.sendStatus(200));
-});
-
-// Forgot password
+// Forgot Password
 app.post('/forgot-password', (req, res) => {
   const { email } = req.body;
-  const users = loadJSON(USERS_FILE);
-  if (!users[email]) return res.status(404).send('Email not found.');
+  const users = readJSON(USERS_FILE);
+  const user = users.find((u) => u.email === email);
+  if (!user) return res.status(400).json({ error: 'User not found' });
 
-  const token = crypto.randomBytes(20).toString('hex');
-  const tokens = loadJSON(RESET_TOKENS_FILE);
-  tokens[token] = { email, expires: Date.now() + 3600000 };
-  saveJSON(RESET_TOKENS_FILE, tokens);
+  const token = Math.random().toString(36).substring(2, 15);
+  const tokens = readJSON(RESET_TOKENS_FILE);
+  tokens[token] = email;
+  writeJSON(RESET_TOKENS_FILE, tokens);
 
-  const resetLink = `${process.env.BASE_URL}/reset-password.html?token=${token}`;
+  const link = `https://${req.headers.host}/reset-password.html?token=${token}`;
+
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  });
+
   transporter.sendMail({
     from: process.env.EMAIL_USER,
     to: email,
-    subject: 'Password Reset',
-    text: `Reset your password: ${resetLink}`
+    subject: 'Reset Your Sortir Password',
+    text: `Click to reset: ${link}`,
   });
 
-  res.status(200).send('Reset link sent.');
+  res.status(200).json({ success: true });
 });
 
-// Reset password
+// Reset Password
 app.post('/reset-password', async (req, res) => {
   const { token, password } = req.body;
-  const tokens = loadJSON(RESET_TOKENS_FILE);
-  const data = tokens[token];
-  if (!data || data.expires < Date.now()) return res.status(400).send('Invalid or expired token.');
+  const tokens = readJSON(RESET_TOKENS_FILE);
+  const email = tokens[token];
+  if (!email) return res.status(400).json({ error: 'Invalid or expired token' });
 
-  const users = loadJSON(USERS_FILE);
-  const hashed = await bcrypt.hash(password, 10);
-  users[data.email].password = hashed;
-  saveJSON(USERS_FILE, users);
+  const users = readJSON(USERS_FILE);
+  const user = users.find((u) => u.email === email);
+  if (!user) return res.status(400).json({ error: 'User not found' });
+
+  user.password = await bcrypt.hash(password, 10);
+  writeJSON(USERS_FILE, users);
+
   delete tokens[token];
-  saveJSON(RESET_TOKENS_FILE, tokens);
+  writeJSON(RESET_TOKENS_FILE, tokens);
 
-  res.status(200).send('Password reset successful.');
-});
-
-// File upload
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, FILES_DIR),
-  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
-});
-const upload = multer({ storage });
-
-app.post('/upload', upload.single('file'), (req, res) => {
-  if (!req.session.user) return res.sendStatus(401);
-  const filePath = path.join(FILES_DIR, req.file.filename);
-
-  const files = loadJSON('./fileIndex.json');
-  if (!files[req.session.user]) files[req.session.user] = [];
-  files[req.session.user].push(filePath);
-  saveJSON('./fileIndex.json', files);
-
-  res.sendStatus(200);
-});
-
-// List files
-app.get('/files', (req, res) => {
-  if (!req.session.user) return res.sendStatus(401);
-  const files = loadJSON('./fileIndex.json');
-  res.json(files[req.session.user] || []);
-});
-
-// Delete file
-app.post('/delete/:filename', (req, res) => {
-  if (!req.session.user) return res.sendStatus(401);
-  const files = loadJSON('./fileIndex.json');
-  const userFiles = files[req.session.user] || [];
-
-  const filePath = path.join(FILES_DIR, req.params.filename);
-  const index = userFiles.indexOf(filePath);
-  if (index !== -1) {
-    userFiles.splice(index, 1);
-    fs.unlinkSync(filePath);
-    saveJSON('./fileIndex.json', files);
-  }
-
-  res.sendStatus(200);
+  res.status(200).json({ success: true });
 });
 
 // Ask Sortir
 app.post('/ask', async (req, res) => {
-  if (!req.session.user) return res.sendStatus(401);
-  const files = loadJSON('./fileIndex.json')[req.session.user] || [];
-  let combinedText = '';
+  if (!req.session.user) return res.status(401).json({ error: 'Unauthorized' });
+  const { prompt, files } = req.body;
 
-  for (const file of files) {
-    try {
-      const data = fs.readFileSync(file);
-      const parsed = await pdfParse(data);
-      combinedText += parsed.text + '\n';
-    } catch {}
-  }
+  const combinedText = files.map(f => f.text).join('\n\n');
 
-  const response = await openai.chat.completions.create({
+  const configuration = new Configuration({ apiKey: process.env.OPENAI_API_KEY });
+  const openai = new OpenAIApi(configuration);
+
+  const response = await openai.createChatCompletion({
     model: 'gpt-4',
-    messages: [
-      { role: 'system', content: 'You are a helpful assistant for retrieving business SOPs.' },
-      { role: 'user', content: `${req.body.prompt}\n\nContext:\n${combinedText}` }
-    ]
+    messages: [{ role: 'user', content: `Files:\n${combinedText}\n\nQuestion:\n${prompt}` }],
   });
 
-  res.json({ answer: response.choices[0].message.content });
+  res.json({ answer: response.data.choices[0].message.content.trim() });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// Start
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
