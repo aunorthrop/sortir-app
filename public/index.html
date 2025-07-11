@@ -1,52 +1,33 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sortir</title>
-  <link rel="stylesheet" href="style.css">
+  <title>Reset Password</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="container">
-    <img src="sortir-logo.png" alt="Sortir Logo" class="logo">
-    
-    <div id="auth-section">
-      <div class="form-box">
-        <h2>Sign Up</h2>
-        <input type="email" id="signup-email" placeholder="Email">
-        <input type="password" id="signup-password" placeholder="Password">
-        <button onclick="signup()">Sign Up</button>
-        <div id="signup-message" class="error-message"></div>
-      </div>
-      <div class="form-box">
-        <h2>Login</h2>
-        <input type="email" id="login-email" placeholder="Email">
-        <input type="password" id="login-password" placeholder="Password">
-        <button onclick="login()">Login</button>
-        <div id="login-message" class="error-message"></div>
-        <button onclick="showReset()">Forgot Password?</button>
-      </div>
-    </div>
-
-    <div id="reset-section" style="display:none;">
-      <h2>Reset Your Password</h2>
-      <input type="email" id="reset-email" placeholder="Your Email">
-      <button onclick="requestReset()">Send Reset Link</button>
-      <div id="reset-request-message" class="error-message"></div>
-    </div>
-
-    <div id="ask-section" style="display:none;">
-      <h2>Your Vault</h2>
-      <form id="uploadForm" enctype="multipart/form-data">
-        <input type="file" name="file" id="fileInput">
-        <button type="submit">Upload Document</button>
-      </form>
-      <div id="fileList"></div>
-      <textarea id="question" placeholder="Ask Sortir..."></textarea>
-      <button onclick="askSortir()">Ask Sortir</button>
-      <div id="response"></div>
-    </div>
+  <div class="reset-container">
+    <h2>Reset Your Password</h2>
+    <input type="password" id="newPassword" placeholder="Enter new password" />
+    <button onclick="submitNewPassword()">Submit</button>
+    <p id="resetStatus" style="margin-top: 10px;"></p>
   </div>
-  <script src="script.js"></script>
+
+  <script>
+    async function submitNewPassword() {
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get('token');
+      const password = document.getElementById('newPassword').value;
+
+      const res = await fetch('/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, password }),
+      });
+
+      const data = await res.json();
+      const status = document.getElementById('resetStatus');
+      status.textContent = data.success ? 'Password updated successfully.' : data.error || 'Something went wrong.';
+    }
+  </script>
 </body>
 </html>
