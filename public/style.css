@@ -155,3 +155,22 @@ button[type="submit"]:hover {
   from { opacity: 1; }
   to { opacity: 0.5; }
 }
+.logo {
+  width: 300px;
+  display: block;
+  margin: 20px auto;
+}
+#auth-section form {
+  background-color: #1e1e1e;
+  padding: 20px;
+  border-radius: 8px;
+  margin: 10px auto;
+  width: 300px;
+}
+
+#auth-section input,
+#auth-section button {
+  width: 100%;
+  padding: 10px;
+  margin: 5px 0;
+}
