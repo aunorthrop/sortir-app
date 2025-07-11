@@ -3,43 +3,43 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Sortir</title>
-  <link rel="stylesheet" href="style.css"/>
+  <title>Sortir Vault</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <img src="sortir-logo.png" alt="Sortir Logo" class="logo" />
+  <header>
+    <img src="sortir-logo.png" alt="Sortir Logo" class="header-logo">
+  </header>
 
-  <div id="auth-section">
-    <form id="signup-form">
-      <h2>Sign Up</h2>
-      <input type="email" id="signup-email" placeholder="Email" required />
-      <input type="password" id="signup-password" placeholder="Password" required />
-      <button type="submit">Sign Up</button>
-    </form>
+  <div id="auth-message" class="auth-message"></div>
 
-    <form id="login-form">
-      <h2>Login</h2>
-      <input type="email" id="login-email" placeholder="Email" required />
-      <input type="password" id="login-password" placeholder="Password" required />
-      <button type="submit">Login</button>
-    </form>
-    <div id="auth-message"></div>
-  </div>
+  <form id="signupForm">
+    <input type="email" id="signupEmail" placeholder="Email" required />
+    <input type="password" id="signupPassword" placeholder="Password" required />
+    <button type="submit">Sign Up</button>
+  </form>
 
-  <div id="main-app" style="display:none;">
-    <h2>Your Vault</h2>
-    <form id="upload-form">
-      <input type="file" id="fileInput" />
-      <button type="submit">Upload</button>
-    </form>
-    <div id="fileList"></div>
-    <h2>Ask Sortir</h2>
-    <form id="ask-form">
-      <input type="text" id="question" placeholder="Ask a question..." />
-      <button type="submit">Ask</button>
-    </form>
-    <div id="answer"></div>
-  </div>
+  <form id="loginForm">
+    <input type="email" id="loginEmail" placeholder="Email" required />
+    <input type="password" id="loginPassword" placeholder="Password" required />
+    <button type="submit">Log In</button>
+  </form>
+
+  <form id="uploadForm">
+    <label for="fileInput" class="custom-file-upload">Choose File</label>
+    <input type="file" id="fileInput" name="file" accept=".pdf" />
+    <button type="submit">Upload PDF</button>
+  </form>
+
+  <div id="fileList"></div>
+
+  <form id="askForm">
+    <input type="text" id="questionInput" placeholder="Ask something..." />
+    <button type="submit">Ask Sortir</button>
+    <span id="loadingIndicator" class="loading-indicator" style="display: none;">Thinking . . .</span>
+  </form>
+
+  <div id="answerBox"></div>
 
   <script src="script.js"></script>
 </body>
