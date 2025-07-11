@@ -1,112 +1,91 @@
 const express = require("express");
 const multer = require("multer");
+const session = require("express-session");
+const FileStore = require("session-file-store")(session);
 const fs = require("fs");
 const path = require("path");
 const pdfParse = require("pdf-parse");
-const cors = require("cors");
-const session = require("express-session");
-const FileStore = require("session-file-store")(session);
-require("dotenv").config();
-const { OpenAI } = require("openai");
+const OpenAI = require("openai");
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 10000;
 
-app.use(cors());
-app.use(express.json());
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
 app.use(express.static("public"));
+app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use(
   session({
-    store: new FileStore({ path: "./sessions" }),
-    secret: "sortirSecret",
+    store: new FileStore({}),
+    secret: "sortir-secret",
     resave: false,
-    saveUninitialized: true,
-    cookie: { secure: false },
+    saveUninitialized: false,
   })
 );
 
-const upload = multer({ dest: "uploads/" });
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const userDir = path.join(__dirname, "uploads", req.session.user);
+    fs.mkdirSync(userDir, { recursive: true });
+    cb(null, userDir);
+  },
+  filename: (req, file, cb) => cb(null, file.originalname),
+});
+const upload = multer({ storage });
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+const users = {}; // In-memory user store: { email: password }
+
+app.post("/signup", (req, res) => {
+  const { email, password } = req.body;
+  if (users[email]) return res.status(409).send("User exists");
+  users[email] = password;
+  req.session.user = email;
+  res.sendStatus(200);
 });
 
-function getUserDir(req) {
-  const userDir = path.join(__dirname, "uploads", req.session.id);
-  if (!fs.existsSync(userDir)) fs.mkdirSync(userDir, { recursive: true });
-  return userDir;
-}
+app.post("/login", (req, res) => {
+  const { email, password } = req.body;
+  if (users[email] !== password) return res.status(401).send("Invalid credentials");
+  req.session.user = email;
+  res.sendStatus(200);
+});
 
 app.post("/upload", upload.single("file"), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-
-  const fileExt = path.extname(req.file.originalname).toLowerCase();
-  if (fileExt !== ".pdf") {
-    fs.unlinkSync(req.file.path);
-    return res.status(400).json({ error: "Only PDF files are supported" });
-  }
-
-  const destDir = getUserDir(req);
-  const destPath = path.join(destDir, req.file.originalname);
-  fs.rename(req.file.path, destPath, (err) => {
-    if (err) return res.status(500).json({ error: "Failed to save file" });
-    return res.json({ success: true });
-  });
+  if (!req.session.user) return res.status(401).send("Unauthorized");
+  res.sendStatus(200);
 });
 
 app.get("/files", (req, res) => {
-  const dirPath = getUserDir(req);
-  fs.readdir(dirPath, (err, files) => {
-    if (err) return res.status(500).json({ error: "Unable to list files" });
-    res.json(files);
-  });
-});
-
-app.delete("/delete/:filename", (req, res) => {
-  const filePath = path.join(getUserDir(req), req.params.filename);
-  fs.unlink(filePath, (err) => {
-    if (err) return res.status(500).json({ success: false });
-    res.json({ success: true });
-  });
+  if (!req.session.user) return res.status(401).send("Unauthorized");
+  const userDir = path.join(__dirname, "uploads", req.session.user);
+  if (!fs.existsSync(userDir)) return res.json([]);
+  const files = fs.readdirSync(userDir);
+  res.json(files);
 });
 
 app.post("/ask", async (req, res) => {
-  const question = req.body.question;
-  if (!question) return res.status(400).json({ error: "No question provided" });
+  if (!req.session.user) return res.status(401).send("Unauthorized");
+  const userDir = path.join(__dirname, "uploads", req.session.user);
+  const files = fs.existsSync(userDir) ? fs.readdirSync(userDir) : [];
 
-  const files = fs.readdirSync(getUserDir(req));
-  let fullText = "";
-
+  let combinedText = "";
   for (const file of files) {
-    const filePath = path.join(getUserDir(req), file);
-    const dataBuffer = fs.readFileSync(filePath);
-    try {
-      const data = await pdfParse(dataBuffer);
-      fullText += `\n\n--- Content from ${file} ---\n\n` + data.text;
-    } catch (err) {
-      console.error(`Failed to parse ${file}:`, err);
-    }
+    const filePath = path.join(userDir, file);
+    const data = await pdfParse(fs.readFileSync(filePath)).catch(() => null);
+    if (data) combinedText += data.text + "\n";
   }
 
-  try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4",
-      messages: [
-        { role: "system", content: "You are a helpful assistant reading company documents to answer questions." },
-        { role: "user", content: `${question}\n\nDocuments:\n${fullText}` },
-      ],
-      temperature: 0.2,
-    });
+  const prompt = `The user asked: "${req.body.question}"\n\nBased on these documents:\n${combinedText}`;
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4",
+    messages: [{ role: "user", content: prompt }],
+  });
 
-    res.json({ answer: completion.choices[0].message.content.trim() });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "OpenAI request failed" });
-  }
+  res.json({ answer: completion.choices[0].message.content.trim() });
 });
 
 app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+  console.log(`✅ Sortir running on port ${port}`);
 });
