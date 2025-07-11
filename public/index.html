@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <link rel="stylesheet" href="style.css"/>
   <title>Sortir</title>
+  <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
-  <img class="logo" src="sortir-logo.png" alt="Sortir Logo"/>
+  <img src="sortir-logo.png" alt="Sortir Logo" class="logo" />
 
   <div id="auth-section">
     <form id="signup-form">
@@ -16,6 +16,7 @@
       <input type="password" id="signup-password" placeholder="Password" required />
       <button type="submit">Sign Up</button>
     </form>
+
     <form id="login-form">
       <h2>Login</h2>
       <input type="email" id="login-email" placeholder="Email" required />
@@ -25,14 +26,20 @@
     <div id="auth-message"></div>
   </div>
 
-  <form id="upload-form" style="display: none">
-    <h2>Upload Documents</h2>
-    <input type="file" id="file" />
-    <button type="submit">Upload</button>
-  </form>
-
-  <div id="file-list"></div>
-  <div id="answer"></div>
+  <div id="main-app" style="display:none;">
+    <h2>Your Vault</h2>
+    <form id="upload-form">
+      <input type="file" id="fileInput" />
+      <button type="submit">Upload</button>
+    </form>
+    <div id="fileList"></div>
+    <h2>Ask Sortir</h2>
+    <form id="ask-form">
+      <input type="text" id="question" placeholder="Ask a question..." />
+      <button type="submit">Ask</button>
+    </form>
+    <div id="answer"></div>
+  </div>
 
   <script src="script.js"></script>
 </body>
