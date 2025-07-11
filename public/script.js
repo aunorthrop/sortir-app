@@ -1,89 +1,83 @@
-document.getElementById('signup-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
+async function signup() {
   const email = document.getElementById('signup-email').value;
   const password = document.getElementById('signup-password').value;
   const res = await fetch('/signup', {
     method: 'POST',
-    headers: {'Content-Type': 'application/json'},
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password })
   });
-  const data = await res.json();
-  if (res.ok) {
-    location.reload();
-  } else {
-    document.getElementById('signup-error').textContent = data.message;
-  }
-});
+  const result = await res.json();
+  document.getElementById('signup-message').textContent = result.message;
+  if (result.success) window.location.reload();
+}
 
-document.getElementById('login-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
+async function login() {
   const email = document.getElementById('login-email').value;
   const password = document.getElementById('login-password').value;
   const res = await fetch('/login', {
     method: 'POST',
-    headers: {'Content-Type': 'application/json'},
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password })
   });
-  const data = await res.json();
-  if (res.ok) {
-    document.getElementById('auth-container').style.display = 'none';
-    document.getElementById('file-section').style.display = 'block';
+  const result = await res.json();
+  document.getElementById('login-message').textContent = result.message;
+  if (result.success) {
+    document.getElementById('auth-section').style.display = 'none';
+    document.getElementById('ask-section').style.display = 'block';
     listFiles();
-  } else {
-    document.getElementById('login-error').textContent = data.message;
   }
-});
+}
 
-document.getElementById('upload-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const fileInput = document.getElementById('fileInput');
-  const formData = new FormData();
-  formData.append('file', fileInput.files[0]);
-  await fetch('/upload', { method: 'POST', body: formData });
-  listFiles();
-});
+function showReset() {
+  document.getElementById('auth-section').style.display = 'none';
+  document.getElementById('reset-section').style.display = 'block';
+}
 
-document.getElementById('ask-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
+async function requestReset() {
+  const email = document.getElementById('reset-email').value;
+  const res = await fetch('/request-reset', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email })
+  });
+  const result = await res.json();
+  document.getElementById('reset-request-message').textContent = result.message;
+}
+
+async function askSortir() {
   const question = document.getElementById('question').value;
   const res = await fetch('/ask', {
     method: 'POST',
-    headers: {'Content-Type': 'application/json'},
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ question })
   });
   const data = await res.json();
   document.getElementById('response').textContent = data.answer;
-});
+}
 
 async function listFiles() {
   const res = await fetch('/files');
   const files = await res.json();
-  const list = document.getElementById('fileList');
-  list.innerHTML = '';
+  const container = document.getElementById('fileList');
+  container.innerHTML = '';
   files.forEach(file => {
     const div = document.createElement('div');
     div.textContent = file;
     const btn = document.createElement('button');
     btn.textContent = 'Delete';
     btn.onclick = async () => {
-      await fetch('/delete/' + file, { method: 'DELETE' });
+      await fetch(`/delete/${file}`, { method: 'DELETE' });
       listFiles();
     };
     div.appendChild(btn);
-    list.appendChild(div);
+    container.appendChild(div);
   });
 }
 
-function logout() {
-  fetch('/logout').then(() => location.reload());
-}
-
-window.onload = async () => {
-  const res = await fetch('/check-session');
-  const data = await res.json();
-  if (data.loggedIn) {
-    document.getElementById('auth-container').style.display = 'none';
-    document.getElementById('file-section').style.display = 'block';
-    listFiles();
-  }
-};
+document.getElementById('uploadForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const formData = new FormData();
+  formData.append('file', document.getElementById('fileInput').files[0]);
+  await fetch('/upload', { method: 'POST', body: formData });
+  listFiles();
+});
