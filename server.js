@@ -1,172 +1,134 @@
-const express = require('express');
-const multer = require('multer');
-const fs = require('fs');
-const path = require('path');
-const pdfParse = require('pdf-parse');
-const session = require('express-session');
-const nodemailer = require('nodemailer');
-const { Configuration, OpenAIApi } = require('openai');
-const bodyParser = require('body-parser');
-const bcrypt = require('bcrypt');
+const express = require("express");
+const multer = require("multer");
+const fs = require("fs");
+const path = require("path");
+const pdfParse = require("pdf-parse");
+const session = require("express-session");
+const nodemailer = require("nodemailer");
+const bodyParser = require("body-parser");
+const bcrypt = require("bcrypt");
+const dotenv = require("dotenv");
+const OpenAI = require("openai");
 
-require('dotenv').config();
+dotenv.config();
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const app = express();
-const port = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 
-const users = {}; // Temporary user store
+const users = {};
+const uploads = {};
 
-// Setup session
-app.use(session({
-  secret: 'sortir-secret',
-  resave: false,
-  saveUninitialized: false,
-}));
-
-// Middleware
-app.use(express.static('public'));
+app.use(express.static("public"));
+app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
 
-// OpenAI setup
-const configuration = new Configuration({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-const openai = new OpenAIApi(configuration);
+app.use(
+  session({
+    secret: "sortir-secret",
+    resave: false,
+    saveUninitialized: false,
+  })
+);
 
-// Multer storage
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const userDir = path.join(__dirname, 'uploads', req.session.user || 'guest');
-    fs.mkdirSync(userDir, { recursive: true });
-    cb(null, userDir);
+// Email sender setup
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.GMAIL_EMAIL,
+    pass: process.env.GMAIL_PASSWORD,
   },
-  filename: (req, file, cb) => {
-    cb(null, file.originalname);
-  }
+});
+
+// Multer for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, "uploads/"),
+  filename: (req, file, cb) => cb(null, Date.now() + "-" + file.originalname),
 });
 const upload = multer({ storage });
 
-// Signup
-app.post('/signup', async (req, res) => {
+// -------- ROUTES --------
+
+app.post("/signup", async (req, res) => {
   const { email, password } = req.body;
-  if (users[email]) {
-    return res.status(400).json({ message: 'Email already in use' });
-  }
+  if (users[email]) return res.status(400).json({ error: "Email already in use" });
 
-  const hashedPassword = await bcrypt.hash(password, 10);
-  users[email] = { password: hashedPassword };
+  const hashed = await bcrypt.hash(password, 10);
+  users[email] = { password: hashed };
+  uploads[email] = [];
 
-  req.session.user = email;
+  req.session.email = email;
 
   // Send confirmation email
-  try {
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.SORTIR_EMAIL,
-        pass: process.env.SORTIR_PASS
-      }
-    });
+  await transporter.sendMail({
+    from: process.env.GMAIL_EMAIL,
+    to: email,
+    subject: "Welcome to Sortir",
+    text: "Thanks for signing up! Your Sortir account is ready.",
+  });
 
-    await transporter.sendMail({
-      from: `"Sortir Vault" <${process.env.SORTIR_EMAIL}>`,
-      to: email,
-      subject: "Welcome to Sortir Vault",
-      text: `Hi there! You've successfully created an account with Sortir Vault.`,
-    });
-
-    res.json({ message: 'Signup successful and email sent' });
-  } catch (err) {
-    console.error('Email error:', err);
-    res.json({ message: 'Signup successful but email failed to send' });
-  }
+  res.sendStatus(200);
 });
 
-// Login
-app.post('/login', async (req, res) => {
+app.post("/login", async (req, res) => {
   const { email, password } = req.body;
   const user = users[email];
-  if (!user) return res.status(400).json({ message: 'User not found' });
+  if (!user) return res.status(401).json({ error: "Invalid credentials" });
 
-  const valid = await bcrypt.compare(password, user.password);
-  if (!valid) return res.status(401).json({ message: 'Invalid credentials' });
+  const match = await bcrypt.compare(password, user.password);
+  if (!match) return res.status(401).json({ error: "Invalid credentials" });
 
-  req.session.user = email;
-  res.json({ message: 'Login successful' });
+  req.session.email = email;
+  res.sendStatus(200);
 });
 
-// Upload
-app.post('/upload', upload.single('file'), (req, res) => {
-  res.json({ message: 'File uploaded successfully' });
+app.get("/session", (req, res) => {
+  if (req.session.email) return res.json({ loggedIn: true, email: req.session.email });
+  res.json({ loggedIn: false });
 });
 
-// List files
-app.get('/list-files', (req, res) => {
-  const user = req.session.user || 'guest';
-  const userDir = path.join(__dirname, 'uploads', user);
-  fs.readdir(userDir, (err, files) => {
-    if (err) return res.json([]);
-    res.json(files);
+app.post("/upload", upload.single("file"), async (req, res) => {
+  const email = req.session.email;
+  if (!email) return res.status(401).end();
+
+  const buffer = fs.readFileSync(req.file.path);
+  const data = await pdfParse(buffer);
+  uploads[email].push({ name: req.file.originalname, content: data.text });
+  res.sendStatus(200);
+});
+
+app.get("/files", (req, res) => {
+  const email = req.session.email;
+  if (!email || !uploads[email]) return res.json([]);
+  res.json(uploads[email].map(f => f.name));
+});
+
+app.post("/delete/:name", (req, res) => {
+  const email = req.session.email;
+  if (!email || !uploads[email]) return res.sendStatus(401);
+
+  uploads[email] = uploads[email].filter(f => f.name !== req.params.name);
+  res.sendStatus(200);
+});
+
+app.post("/ask", async (req, res) => {
+  const email = req.session.email;
+  if (!email || !uploads[email]) return res.sendStatus(401);
+
+  const question = req.body.question;
+  const context = uploads[email].map(f => f.content).join("\n").slice(0, 8000); // keep prompt short
+
+  const completion = await openai.chat.completions.create({
+    model: "gpt-3.5-turbo",
+    messages: [
+      { role: "system", content: "You answer based only on the uploaded documents." },
+      { role: "user", content: `${context}\n\nQuestion: ${question}` },
+    ],
   });
+
+  res.json({ answer: completion.choices[0].message.content });
 });
 
-// Delete file
-app.post('/delete-file', (req, res) => {
-  const { filename } = req.body;
-  const user = req.session.user || 'guest';
-  const userDir = path.join(__dirname, 'uploads', user);
-  const filePath = path.join(userDir, filename);
-  fs.unlink(filePath, err => {
-    if (err) return res.status(500).json({ message: 'Error deleting file' });
-    res.json({ message: 'File deleted' });
-  });
-});
-
-// Ask question
-app.post('/ask', async (req, res) => {
-  const user = req.session.user || 'guest';
-  const userDir = path.join(__dirname, 'uploads', user);
-  const { question } = req.body;
-
-  fs.readdir(userDir, async (err, files) => {
-    if (err || files.length === 0) {
-      return res.status(400).json({ answer: 'No documents found.' });
-    }
-
-    let fullText = '';
-    for (const file of files) {
-      const filePath = path.join(userDir, file);
-      try {
-        const data = fs.readFileSync(filePath);
-        const pdfText = await pdfParse(data);
-        fullText += pdfText.text + '\n\n';
-      } catch (e) {
-        console.error(`Error parsing ${file}:`, e);
-      }
-    }
-
-    try {
-      const completion = await openai.createChatCompletion({
-        model: 'gpt-3.5-turbo',
-        messages: [
-          { role: 'system', content: 'You are a helpful assistant trained to answer questions based on uploaded business documents.' },
-          { role: 'user', content: `${question}\n\nContext:\n${fullText}` }
-        ],
-        temperature: 0.5,
-        max_tokens: 500,
-      });
-
-      const answer = completion.data.choices[0].message.content.trim();
-      res.json({ answer });
-    } catch (error) {
-      console.error('OpenAI error:', error);
-      res.status(500).json({ answer: 'Error generating answer.' });
-    }
-  });
-});
-
-// Start server
-app.listen(port, () => {
-  console.log(`Sortir Vault live on port ${port}`);
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
