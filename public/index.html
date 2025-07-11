@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Sortir Vault</title>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -10,38 +11,21 @@
     <img src="sortir-logo.png" alt="Sortir Logo" class="header-logo">
   </header>
 
-  <div id="authContainer">
-    <form id="loginForm">
-      <input type="email" id="email" placeholder="Email" required />
-      <input type="password" id="password" placeholder="Password" required />
-      <button type="submit">Login</button>
-    </form>
+  <form id="uploadForm">
+    <label for="fileInput" class="custom-file-upload">Choose File</label>
+    <input type="file" id="fileInput" name="file" accept=".pdf" />
+    <button type="submit">Upload PDF</button>
+  </form>
 
-    <form id="signupForm">
-      <input type="email" id="signupEmail" placeholder="New Email" required />
-      <input type="password" id="signupPassword" placeholder="New Password" required />
-      <button type="submit">Sign Up</button>
-    </form>
-  </div>
+  <div id="fileListContainer"></div>
 
-  <div id="appContainer" style="display:none;">
-    <form id="uploadForm">
-      <label for="fileInput" class="custom-file-upload">Choose File</label>
-      <input type="file" id="fileInput" name="file" accept=".pdf" />
-      <button type="submit">Upload PDF</button>
-    </form>
+  <form id="askForm">
+    <input type="text" id="questionInput" placeholder="Ask something..." />
+    <button type="submit">Ask Sortir</button>
+    <span id="loadingIndicator" class="loading-indicator" style="display: none;">Thinking . . .</span>
+  </form>
 
-    <div id="fileListContainer"></div>
-
-    <form id="askForm">
-      <input type="text" id="questionInput" placeholder="Ask something..." />
-      <button type="submit">Ask Sortir</button>
-      <span id="loadingIndicator" class="loading-indicator" style="display: none;">Thinking . . .</span>
-    </form>
-
-    <div id="answerBox"></div>
-    <button id="logoutBtn">Logout</button>
-  </div>
+  <div id="answerBox"></div>
 
   <script src="script.js"></script>
 </body>
