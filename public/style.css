@@ -33,9 +33,7 @@ form {
 }
 
 input[type="file"],
-input[type="text"],
-input[type="email"],
-input[type="password"] {
+input[type="text"] {
   width: calc(100% - 20px);
   padding: 10px;
   margin-bottom: 15px;
@@ -46,14 +44,11 @@ input[type="password"] {
   box-sizing: border-box;
 }
 
-input[type="text"]::placeholder,
-input[type="email"]::placeholder,
-input[type="password"]::placeholder {
+input[type="text"]::placeholder {
   color: #bbb;
 }
 
-button[type="submit"],
-.logout-button {
+button[type="submit"] {
   background-color: #00ffff;
   color: #282c34;
   padding: 10px 15px;
@@ -64,18 +59,8 @@ button[type="submit"],
   transition: background-color 0.3s ease;
 }
 
-button[type="submit"]:hover,
-.logout-button:hover {
+button[type="submit"]:hover {
   background-color: #00ccff;
-}
-
-.logout-button {
-  margin-top: 20px;
-  background-color: #555;
-  color: white;
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-size: 0.95em;
 }
 
 #answerBox {
@@ -169,19 +154,4 @@ button[type="submit"]:hover,
 @keyframes blink {
   from { opacity: 1; }
   to { opacity: 0.5; }
-}
-
-/* Auth Forms */
-form h2 {
-  color: #00ffff;
-  text-align: center;
-  margin-bottom: 10px;
-}
-
-.error-message {
-  color: #ff4d4d;
-  text-align: center;
-  margin-top: -10px;
-  margin-bottom: 20px;
-  font-weight: bold;
 }
