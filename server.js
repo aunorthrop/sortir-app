@@ -1,171 +1,197 @@
 const express = require('express');
 const session = require('express-session');
-const bcrypt = require('bcrypt');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
-const PDFParser = require('pdf-parse');
-const { Configuration, OpenAIApi } = require('openai');
+const pdfParse = require('pdf-parse');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
-const low = require('lowdb');
-const FileSync = require('lowdb/adapters/FileSync');
-require('dotenv').config();
+const bcrypt = require('bcrypt');
+const { Configuration, OpenAIApi } = require('openai');
 
 const app = express();
-const port = process.env.PORT || 3000;
-const upload = multer({ dest: 'uploads/' });
+const PORT = process.env.PORT || 3000;
 
-const adapter = new FileSync('db.json');
-const db = low(adapter);
-db.defaults({ users: [], resetTokens: [] }).write();
-
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
-
-const configuration = new Configuration({
-  apiKey: process.env.OPENAI_API_KEY
-});
-const openai = new OpenAIApi(configuration);
-
+// Middleware
 app.use(express.static('public'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
 app.use(session({
   secret: 'sortir-secret',
   resave: false,
-  saveUninitialized: false
+  saveUninitialized: true,
 }));
 
-const userFilesDir = email => path.join(__dirname, 'uploads', encodeURIComponent(email));
-if (!fs.existsSync('uploads')) fs.mkdirSync('uploads');
+const USERS_FILE = './users.json';
+const RESET_TOKENS_FILE = './resetTokens.json';
 
-function ensureAuth(req, res, next) {
-  if (req.session.email) return next();
-  res.status(401).json({ message: 'Unauthorized' });
+function readJSON(file) {
+  return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf-8')) : {};
 }
 
+function writeJSON(file, data) {
+  fs.writeFileSync(file, JSON.stringify(data, null, 2));
+}
+
+// Multer setup for file uploads
+const upload = multer({ dest: 'uploads/' });
+
+// OpenAI setup
+const configuration = new Configuration({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+const openai = new OpenAIApi(configuration);
+
+// Upload endpoint
+app.post('/upload', upload.single('file'), async (req, res) => {
+  if (!req.session.user) return res.status(401).send('Not logged in');
+
+  const filePath = req.file.path;
+  const dataBuffer = fs.readFileSync(filePath);
+  const data = await pdfParse(dataBuffer);
+
+  req.session.files = req.session.files || [];
+  req.session.files.push({ name: req.file.originalname, text: data.text });
+  fs.unlinkSync(filePath);
+
+  res.json({ success: true });
+});
+
+// Ask endpoint
+app.post('/ask', async (req, res) => {
+  if (!req.session.user || !req.session.files) return res.status(401).send('Unauthorized');
+
+  const question = req.body.question;
+  const combinedText = req.session.files.map(f => f.text).join('\n\n');
+
+  try {
+    const response = await openai.createChatCompletion({
+      model: 'gpt-3.5-turbo',
+      messages: [
+        { role: "system", content: "You are Sortir, a helpful assistant." },
+        { role: "user", content: `Answer the following question using this data:\n${combinedText}\n\nQuestion: ${question}` }
+      ],
+    });
+
+    res.json({ answer: response.data.choices[0].message.content });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to get answer from AI.' });
+  }
+});
+
+// Delete file endpoint
+app.post('/delete', (req, res) => {
+  const index = req.body.index;
+  if (req.session.files && req.session.files[index]) {
+    req.session.files.splice(index, 1);
+  }
+  res.json({ success: true });
+});
+
+// Get files
+app.get('/files', (req, res) => {
+  if (!req.session.user) return res.status(401).send('Unauthorized');
+  res.json(req.session.files || []);
+});
+
+// Signup endpoint
 app.post('/signup', async (req, res) => {
   const { email, password } = req.body;
-  if (db.get('users').find({ email }).value()) {
-    return res.status(400).json({ message: 'Email already in use' });
+  const users = readJSON(USERS_FILE);
+
+  if (users[email]) {
+    return res.status(400).json({ error: 'Email already in use' });
   }
+
   const hashed = await bcrypt.hash(password, 10);
-  db.get('users').push({ email, password: hashed }).write();
-  const userDir = userFilesDir(email);
-  if (!fs.existsSync(userDir)) fs.mkdirSync(userDir);
-  req.session.email = email;
+  users[email] = { password: hashed };
+  writeJSON(USERS_FILE, users);
 
-  await transporter.sendMail({
-    from: process.env.EMAIL_USER,
-    to: email,
-    subject: 'Welcome to Sortir',
-    text: 'Your account has been successfully created.'
-  });
+  sendEmail(email, 'Sortir: Account Created', 'You successfully registered at Sortir.');
 
-  res.json({ message: 'Signed up' });
+  req.session.user = email;
+  res.json({ success: true });
 });
 
+// Login endpoint
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
-  const user = db.get('users').find({ email }).value();
-  if (!user) return res.status(400).json({ message: 'Invalid credentials' });
-  const match = await bcrypt.compare(password, user.password);
-  if (!match) return res.status(400).json({ message: 'Invalid credentials' });
-  req.session.email = email;
-  res.json({ message: 'Logged in' });
+  const users = readJSON(USERS_FILE);
+
+  if (!users[email]) return res.status(400).json({ error: 'Invalid email or password' });
+
+  const match = await bcrypt.compare(password, users[email].password);
+  if (!match) return res.status(401).json({ error: 'Invalid email or password' });
+
+  req.session.user = email;
+  res.json({ success: true });
 });
 
-app.get('/check-session', (req, res) => {
-  res.json({ loggedIn: !!req.session.email });
-});
-
+// Logout
 app.post('/logout', (req, res) => {
-  req.session.destroy(() => res.json({ message: 'Logged out' }));
-});
-
-app.post('/upload', ensureAuth, upload.single('file'), (req, res) => {
-  const email = req.session.email;
-  const userDir = userFilesDir(email);
-  const filePath = path.join(userDir, req.file.originalname);
-  fs.renameSync(req.file.path, filePath);
-  res.sendStatus(200);
-});
-
-app.get('/files', ensureAuth, (req, res) => {
-  const email = req.session.email;
-  const userDir = userFilesDir(email);
-  const files = fs.existsSync(userDir) ? fs.readdirSync(userDir) : [];
-  res.json(files);
-});
-
-app.delete('/delete/:filename', ensureAuth, (req, res) => {
-  const email = req.session.email;
-  const userDir = userFilesDir(email);
-  const filePath = path.join(userDir, req.params.filename);
-  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-  res.sendStatus(200);
-});
-
-app.post('/ask', ensureAuth, async (req, res) => {
-  const email = req.session.email;
-  const userDir = userFilesDir(email);
-  const question = req.body.question;
-
-  let combinedText = '';
-  const files = fs.readdirSync(userDir);
-  for (const file of files) {
-    const content = fs.readFileSync(path.join(userDir, file));
-    const parsed = await PDFParser(content).catch(() => ({ text: '' }));
-    combinedText += parsed.text + '\n';
-  }
-
-  const prompt = `Answer this based on the content below:\n\n${combinedText}\n\nQuestion: ${question}`;
-  const response = await openai.createCompletion({
-    model: 'gpt-3.5-turbo-instruct',
-    prompt,
-    max_tokens: 500
+  req.session.destroy(() => {
+    res.json({ success: true });
   });
-
-  res.json({ answer: response.data.choices[0].text.trim() });
 });
 
-app.post('/reset-request', (req, res) => {
+// Forgot password - generate token
+app.post('/forgot-password', (req, res) => {
   const { email } = req.body;
-  const user = db.get('users').find({ email }).value();
-  if (!user) return res.status(400).json({ message: 'Email not found' });
+  const users = readJSON(USERS_FILE);
+  if (!users[email]) return res.status(400).json({ error: 'Email not registered' });
 
   const token = crypto.randomBytes(32).toString('hex');
-  db.get('resetTokens').remove({ email }).write();
-  db.get('resetTokens').push({ email, token }).write();
+  const resetTokens = readJSON(RESET_TOKENS_FILE);
+  resetTokens[token] = { email, expires: Date.now() + 3600000 };
+  writeJSON(RESET_TOKENS_FILE, resetTokens);
 
-  const resetLink = `${process.env.RESET_URL}/reset-password?token=${token}`;
+  const resetLink = `https://${req.headers.host}/reset-password.html?token=${token}`;
+  sendEmail(email, 'Sortir Password Reset', `Reset your password using this link:\n${resetLink}`);
 
-  transporter.sendMail({
-    from: process.env.EMAIL_USER,
-    to: email,
-    subject: 'Reset your Sortir password',
-    text: `Click here to reset your password: ${resetLink}`
+  res.json({ success: true });
+});
+
+// Reset password - update with new one
+app.post('/reset-password', async (req, res) => {
+  const { token, password } = req.body;
+  const resetTokens = readJSON(RESET_TOKENS_FILE);
+  const users = readJSON(USERS_FILE);
+
+  const entry = resetTokens[token];
+  if (!entry || Date.now() > entry.expires) {
+    return res.status(400).json({ error: 'Invalid or expired token' });
+  }
+
+  const hashed = await bcrypt.hash(password, 10);
+  users[entry.email].password = hashed;
+  delete resetTokens[token];
+
+  writeJSON(USERS_FILE, users);
+  writeJSON(RESET_TOKENS_FILE, resetTokens);
+
+  res.json({ success: true });
+});
+
+// Email sending function using Gmail
+function sendEmail(to, subject, text) {
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.EMAIL_USER,      // your Gmail address
+      pass: process.env.EMAIL_PASS       // your Gmail app password
+    }
   });
 
-  res.json({ message: 'Reset link sent' });
+  transporter.sendMail({
+    from: `"Sortir" <${process.env.EMAIL_USER}>`,
+    to,
+    subject,
+    text
+  });
+}
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
-
-app.post('/reset-password', (req, res) => {
-  const { token, newPassword } = req.body;
-  const record = db.get('resetTokens').find({ token }).value();
-  if (!record) return res.status(400).json({ message: 'Invalid token' });
-
-  const hashed = bcrypt.hashSync(newPassword, 10);
-  db.get('users').find({ email: record.email }).assign({ password: hashed }).write();
-  db.get('resetTokens').remove({ token }).write();
-
-  res.json({ message: 'Password updated' });
-});
-
-app.listen(port, () => console.log(`Sortir running on port ${port}`));
