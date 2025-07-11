@@ -12,6 +12,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const loginForm = document.getElementById("loginForm");
   const authError = document.getElementById("authError");
   const logoutBtn = document.getElementById("logoutBtn");
+  const forgotLink = document.getElementById("forgotLink");
 
   function showMainApp() {
     mainApp.style.display = "block";
@@ -57,6 +58,26 @@ document.addEventListener("DOMContentLoaded", () => {
       authSection.style.display = "block";
       mainApp.style.display = "none";
     });
+  });
+
+  forgotLink.addEventListener("click", () => {
+    const email = prompt("Enter your account email:");
+    if (!email) return;
+
+    fetch("/forgot-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          alert("Check your email for a password reset link.");
+        } else {
+          alert(data.error || "Could not send reset email.");
+        }
+      })
+      .catch(() => alert("Something went wrong."));
   });
 
   function fetchFiles() {
