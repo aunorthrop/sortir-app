@@ -1,31 +1,47 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sortir Vault</title>
-  <link rel="stylesheet" href="style.css" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sortir</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header>
-    <img src="sortir-logo.png" alt="Sortir Logo" class="header-logo">
-  </header>
+  <img src="sortir-logo.png" alt="Sortir Logo" class="logo">
 
-  <form id="uploadForm">
-    <label for="fileInput" class="custom-file-upload">Choose File</label>
-    <input type="file" id="fileInput" name="file" accept=".pdf" />
-    <button type="submit">Upload PDF</button>
-  </form>
+  <div id="auth-section">
+    <form id="signup-form">
+      <h3>Sign Up</h3>
+      <input type="email" id="signup-email" placeholder="Email" required>
+      <input type="password" id="signup-password" placeholder="Password" required>
+      <button type="submit">Sign Up</button>
+    </form>
 
-  <div id="fileListContainer"></div>
+    <form id="login-form">
+      <h3>Login</h3>
+      <input type="email" id="login-email" placeholder="Email" required>
+      <input type="password" id="login-password" placeholder="Password" required>
+      <button type="submit">Login</button>
+    </form>
+  </div>
 
-  <form id="askForm">
-    <input type="text" id="questionInput" placeholder="Ask something..." />
-    <button type="submit">Ask Sortir</button>
-    <span id="loadingIndicator" class="loading-indicator" style="display: none;">Thinking . . .</span>
-  </form>
+  <div id="app-section" style="display: none;">
+    <form id="upload-form">
+      <h3>Upload Documents</h3>
+      <input type="file" id="fileInput" />
+      <button type="submit">Upload</button>
+    </form>
 
-  <div id="answerBox"></div>
+    <div id="file-list"></div>
+
+    <form id="ask-form">
+      <input type="text" id="questionInput" placeholder="Ask Sortir...">
+      <button type="submit">Ask</button>
+    </form>
+
+    <pre id="responseOutput"></pre>
+    <button id="logout-button">Logout</button>
+  </div>
 
   <script src="script.js"></script>
 </body>
