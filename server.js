@@ -1,140 +1,109 @@
-const express = require('express');
-const session = require('express-session');
-const multer = require('multer');
-const cors = require('cors');
-const bcrypt = require('bcrypt');
-const { Low, JSONFile } = require('lowdb');
-const path = require('path');
-const pdfParse = require('pdf-parse');
-const fs = require('fs');
-const { OpenAI } = require('openai');
-require('dotenv').config();
+const express = require("express");
+const multer = require("multer");
+const fs = require("fs");
+const path = require("path");
+const pdfParse = require("pdf-parse");
+const cors = require("cors");
+const session = require("express-session");
+const FileStore = require("session-file-store")(session);
+require("dotenv").config();
+const { OpenAI } = require("openai");
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-// === Storage Setup ===
-const storage = multer.memoryStorage();
-const upload = multer({ storage });
-
-// === Session ===
-app.use(session({
-  secret: 'keyboard cat',
-  resave: false,
-  saveUninitialized: true
-}));
-
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public'));
+app.use(express.static("public"));
+app.use(express.urlencoded({ extended: true }));
 
-// === DB Setup ===
-const dbFile = path.join(__dirname, 'db.json');
-const adapter = new JSONFile(dbFile);
-const db = new Low(adapter);
+app.use(
+  session({
+    store: new FileStore({ path: "./sessions" }),
+    secret: "sortirSecret",
+    resave: false,
+    saveUninitialized: true,
+    cookie: { secure: false },
+  })
+);
 
-(async () => {
-  await db.read();
-  db.data ||= { users: [], uploads: {} };
-  await db.write();
-})();
+const upload = multer({ dest: "uploads/" });
 
-// === Auth ===
-app.post('/signup', async (req, res) => {
-  const { email, password } = req.body;
-  await db.read();
-
-  const userExists = db.data.users.find(user => user.email === email);
-  if (userExists) return res.status(400).json({ error: 'User already exists' });
-
-  const hashed = await bcrypt.hash(password, 10);
-  db.data.users.push({ email, password: hashed });
-  await db.write();
-
-  req.session.user = email;
-  res.json({ success: true });
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
-app.post('/login', async (req, res) => {
-  const { email, password } = req.body;
-  await db.read();
+function getUserDir(req) {
+  const userDir = path.join(__dirname, "uploads", req.session.id);
+  if (!fs.existsSync(userDir)) fs.mkdirSync(userDir, { recursive: true });
+  return userDir;
+}
 
-  const user = db.data.users.find(u => u.email === email);
-  if (!user || !(await bcrypt.compare(password, user.password))) {
-    return res.status(401).json({ error: 'Invalid credentials' });
+app.post("/upload", upload.single("file"), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+
+  const fileExt = path.extname(req.file.originalname).toLowerCase();
+  if (fileExt !== ".pdf") {
+    fs.unlinkSync(req.file.path);
+    return res.status(400).json({ error: "Only PDF files are supported" });
   }
 
-  req.session.user = email;
-  res.json({ success: true });
+  const destDir = getUserDir(req);
+  const destPath = path.join(destDir, req.file.originalname);
+  fs.rename(req.file.path, destPath, (err) => {
+    if (err) return res.status(500).json({ error: "Failed to save file" });
+    return res.json({ success: true });
+  });
 });
 
-app.post('/logout', (req, res) => {
-  req.session.destroy(() => res.json({ success: true }));
+app.get("/files", (req, res) => {
+  const dirPath = getUserDir(req);
+  fs.readdir(dirPath, (err, files) => {
+    if (err) return res.status(500).json({ error: "Unable to list files" });
+    res.json(files);
+  });
 });
 
-const getUserUploads = (email) => db.data.uploads[email] || [];
-
-// === Upload ===
-app.post('/upload', upload.single('file'), async (req, res) => {
-  if (!req.session.user) return res.status(401).send('Unauthorized');
-
-  const file = req.file;
-  if (!file) return res.status(400).send('No file uploaded');
-
-  try {
-    const text = await pdfParse(file.buffer);
-    await db.read();
-
-    db.data.uploads[req.session.user] ||= [];
-    db.data.uploads[req.session.user].push({ name: file.originalname, text: text.text });
-    await db.write();
-
+app.delete("/delete/:filename", (req, res) => {
+  const filePath = path.join(getUserDir(req), req.params.filename);
+  fs.unlink(filePath, (err) => {
+    if (err) return res.status(500).json({ success: false });
     res.json({ success: true });
-  } catch (err) {
-    console.error(err);
-    res.status(500).send('PDF parse failed');
+  });
+});
+
+app.post("/ask", async (req, res) => {
+  const question = req.body.question;
+  if (!question) return res.status(400).json({ error: "No question provided" });
+
+  const files = fs.readdirSync(getUserDir(req));
+  let fullText = "";
+
+  for (const file of files) {
+    const filePath = path.join(getUserDir(req), file);
+    const dataBuffer = fs.readFileSync(filePath);
+    try {
+      const data = await pdfParse(dataBuffer);
+      fullText += `\n\n--- Content from ${file} ---\n\n` + data.text;
+    } catch (err) {
+      console.error(`Failed to parse ${file}:`, err);
+    }
   }
-});
-
-// === Delete ===
-app.post('/delete', async (req, res) => {
-  if (!req.session.user) return res.status(401).send('Unauthorized');
-
-  const { filename } = req.body;
-  await db.read();
-
-  db.data.uploads[req.session.user] = getUserUploads(req.session.user)
-    .filter(file => file.name !== filename);
-  await db.write();
-
-  res.json({ success: true });
-});
-
-// === Ask ===
-app.post('/ask', async (req, res) => {
-  const { question } = req.body;
-  if (!req.session.user) return res.status(401).send('Unauthorized');
-
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-  await db.read();
-  const uploads = getUserUploads(req.session.user);
-  const combinedText = uploads.map(f => f.text).join('\n');
 
   try {
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4',
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4",
       messages: [
-        { role: 'system', content: 'You are a helpful assistant answering questions based on internal documents.' },
-        { role: 'user', content: `Question: ${question}\n\nDocuments:\n${combinedText}` }
-      ]
+        { role: "system", content: "You are a helpful assistant reading company documents to answer questions." },
+        { role: "user", content: `${question}\n\nDocuments:\n${fullText}` },
+      ],
+      temperature: 0.2,
     });
 
-    const answer = response.choices?.[0]?.message?.content || 'No response.';
-    res.json({ answer });
+    res.json({ answer: completion.choices[0].message.content.trim() });
   } catch (err) {
     console.error(err);
-    res.status(500).send('OpenAI error');
+    res.status(500).json({ error: "OpenAI request failed" });
   }
 });
 
