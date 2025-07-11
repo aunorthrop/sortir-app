@@ -1,31 +1,22 @@
 body {
-  background-color: #1e1e1e;
-  color: #ffffff;
-  font-family: 'Arial', sans-serif;
-  text-align: center;
   margin: 0;
-  padding: 0;
+  font-family: sans-serif;
+  background-color: #1a1a1a;
+  color: white;
+  text-align: center;
 }
 
-#logo {
-  max-width: 250px;
-  height: auto;
-  margin: 30px auto 10px;
+.logo {
+  width: 250px;
+  margin: 20px auto;
   display: block;
-}
-
-#auth-section {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 25px;
-  margin-top: 20px;
 }
 
 #auth-section form {
   background-color: #2a2a2a;
   padding: 20px;
-  border-radius: 10px;
+  border-radius: 8px;
+  margin: 20px auto;
   width: 300px;
 }
 
@@ -33,18 +24,31 @@ body {
 #auth-section button {
   width: 100%;
   padding: 10px;
-  margin: 8px 0;
-  border-radius: 5px;
-  border: none;
+  margin: 5px 0;
 }
 
-#auth-section button {
-  background-color: #00ffff;
-  color: #000;
+button {
+  background-color: cyan;
+  border: none;
   font-weight: bold;
   cursor: pointer;
 }
 
-#auth-section button:hover {
-  background-color: #00dddd;
+#upload-form,
+#question {
+  margin: 20px;
+}
+
+#file-list div {
+  margin: 10px 0;
+  padding: 5px;
+  background-color: #2a2a2a;
+}
+
+#answer {
+  background-color: #2a2a2a;
+  padding: 15px;
+  margin-top: 20px;
+  white-space: pre-wrap;
+  text-align: left;
 }
