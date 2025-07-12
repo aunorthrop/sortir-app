@@ -1,115 +1,123 @@
-document.addEventListener('DOMContentLoaded', () => {
-    // --- Global Helper Functions ---
-    const showMessage = (element, message, isError = true) => {
-        element.textContent = message;
-        element.className = isError ? 'error-message visible' : 'success-message visible';
-    };
+// Add this entire block inside your 'DOMContentLoaded' event listener in script.js
 
-    const handleFormSubmit = async (form, apiPath, successCallback) => {
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const formData = new FormData(form);
-            const data = Object.fromEntries(formData.entries());
-            const errorElement = form.querySelector('.error-message, .message');
-            
-            try {
-                const response = await fetch(apiPath, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-                const result = await response.json();
-                
-                if (response.ok) {
-                    successCallback(result);
-                } else {
-                    if (errorElement) showMessage(errorElement, result.message || 'An unknown error occurred.', true);
-                }
-            } catch (err) {
-                if (errorElement) showMessage(errorElement, 'Network error. Please try again.', true);
-            }
-        });
-    };
+// --- DASHBOARD PAGE LOGIC ---
 
-    // --- Tab Switching for Login/Signup Page ---
-    window.showForm = (formId) => {
-        document.querySelectorAll('.auth-form').forEach(form => form.classList.remove('active-form'));
-        document.querySelectorAll('.tab-link').forEach(link => link.classList.remove('active'));
+// Function to fetch and display files
+const loadFiles = async () => {
+    const fileList = document.getElementById('file-list');
+    if (!fileList) return;
 
-        document.getElementById(formId).classList.add('active-form');
-        if (formId === 'login-form') {
-            document.getElementById('show-login').classList.add('active');
+    try {
+        const response = await fetch('/api/files');
+        const data = await response.json();
+
+        fileList.innerHTML = ''; // Clear the list first
+        if (data.success && data.files.length > 0) {
+            data.files.forEach(filename => {
+                const li = document.createElement('li');
+                li.className = 'file-item';
+                li.innerHTML = `
+                    <span>${filename}</span>
+                    <button class="delete-btn" data-filename="${filename}">Delete</button>
+                `;
+                fileList.appendChild(li);
+            });
         } else {
-            document.getElementById('show-signup').classList.add('active');
+            fileList.innerHTML = '<li>No files uploaded yet.</li>';
         }
-    };
-
-    // --- Form Handlers ---
-    const loginForm = document.getElementById('login-form');
-    if (loginForm) {
-        handleFormSubmit(loginForm, '/api/login', (data) => {
-            window.location.href = '/dashboard.html'; // Redirect to dashboard on success
-        });
+    } catch (error) {
+        fileList.innerHTML = '<li>Error loading files.</li>';
     }
+};
 
-    const signupForm = document.getElementById('signup-form');
-    if (signupForm) {
-        handleFormSubmit(signupForm, '/api/signup', (data) => {
-            window.location.href = '/dashboard.html'; // Redirect to dashboard on success
-        });
-    }
+// --- Event Handlers for Dashboard ---
+const uploadForm = document.getElementById('upload-form');
+if (uploadForm) {
+    const fileInput = document.getElementById('file-input');
+    const fileNameDisplay = document.getElementById('file-name-display');
 
-    const forgotForm = document.getElementById('forgot-form');
-    if (forgotForm) {
-        const messageEl = document.getElementById('forgot-message');
-        handleFormSubmit(forgotForm, '/api/forgot-password', (data) => {
-            showMessage(messageEl, data.message, false);
-            forgotForm.reset();
-        });
-    }
+    fileInput.addEventListener('change', () => {
+        fileNameDisplay.textContent = fileInput.files.length > 0 ? fileInput.files[0].name : 'No file selected';
+    });
 
-    const resetForm = document.getElementById('reset-form');
-    if (resetForm) {
-        const messageEl = document.getElementById('reset-message');
-        const urlParams = new URLSearchParams(window.location.search);
-        const email = urlParams.get('email');
-        const token = urlParams.get('token');
-
-        resetForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const newPassword = document.getElementById('new-password').value;
-
-            try {
-                const response = await fetch('/api/reset-password', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, token, newPassword })
-                });
-                const result = await response.json();
-
-                if (response.ok) {
-                    showMessage(messageEl, result.message, false);
-                    resetForm.style.display = 'none'; // Hide form on success
-                    setTimeout(() => window.location.href = '/', 3000); // Redirect to login after 3s
-                } else {
-                    showMessage(messageEl, result.message, true);
-                }
-            } catch (err) {
-                 showMessage(messageEl, 'Network error. Please try again.', true);
+    uploadForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(uploadForm);
+        
+        try {
+            const response = await fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            });
+            const result = await response.json();
+            if (response.ok) {
+                loadFiles(); // Refresh the file list on successful upload
+                uploadForm.reset(); // Clear the form
+                fileNameDisplay.textContent = 'No file selected';
+            } else {
+                alert(result.message || 'Upload failed.');
             }
-        });
-    }
-    
-    // Check if on dashboard and attach logout handler
-    const logoutBtn = document.getElementById('logout-btn');
-    if(logoutBtn) {
-        logoutBtn.addEventListener('click', async () => {
-             const response = await fetch('/api/logout', { method: 'POST'});
-             if(response.ok) {
-                 window.location.href = '/';
-             } else {
-                 alert('Logout failed.');
-             }
-        });
-    }
-});
+        } catch (error) {
+            alert('An error occurred during upload.');
+        }
+    });
+}
+
+// Event delegation for delete buttons
+const fileListContainer = document.getElementById('file-list');
+if(fileListContainer) {
+    fileListContainer.addEventListener('click', async (e) => {
+        if (e.target && e.target.classList.contains('delete-btn')) {
+            const filename = e.target.dataset.filename;
+            if (confirm(`Are you sure you want to delete ${filename}?`)) {
+                try {
+                    const response = await fetch('/api/delete-file', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ filename })
+                    });
+                    const result = await response.json();
+                    if(response.ok) {
+                        loadFiles(); // Refresh list on successful delete
+                    } else {
+                        alert(result.message || 'Failed to delete file.');
+                    }
+                } catch (error) {
+                     alert('An error occurred while deleting the file.');
+                }
+            }
+        }
+    });
+}
+
+// Handler for the "Ask Sortir" form
+const askForm = document.getElementById('ask-form');
+if (askForm) {
+    askForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const question = document.getElementById('question-input').value;
+        const answerContainer = document.getElementById('answer-container');
+        answerContainer.innerHTML = '<p>Thinking...</p>';
+
+        try {
+            const response = await fetch('/api/ask', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ question })
+            });
+            const result = await response.json();
+            if(result.success) {
+                answerContainer.innerHTML = `<p>${result.answer}</p>`;
+            } else {
+                answerContainer.innerHTML = `<p class="error-text">${result.message || 'Failed to get an answer.'}</p>`;
+            }
+        } catch (error) {
+            answerContainer.innerHTML = `<p class="error-text">An error occurred.</p>`;
+        }
+    });
+}
+
+// Initial load of files when the dashboard page loads
+if (window.location.pathname.endsWith('dashboard.html')) {
+    loadFiles();
+}
