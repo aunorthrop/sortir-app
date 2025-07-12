@@ -1,117 +1,68 @@
-document.getElementById('signupForm')?.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const email = document.getElementById('signupEmail').value;
-  const password = document.getElementById('signupPassword').value;
+document.addEventListener("DOMContentLoaded", () => {
+  const signupForm = document.getElementById("signupForm");
+  const loginForm = document.getElementById("loginForm");
+  const forgotLink = document.getElementById("forgotLink");
+  const authError = document.getElementById("authError");
+  const authSection = document.getElementById("authSection");
+  const mainApp = document.getElementById("mainApp");
 
-  const response = await fetch('/signup', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password })
-  });
+  function showError(message) {
+    authError.textContent = message;
+  }
 
-  const data = await response.json();
-  if (response.ok) {
-    document.getElementById('authSection').style.display = 'none';
-    document.getElementById('mainApp').style.display = 'block';
-    loadDocuments();
-  } else {
-    document.getElementById('authError').textContent = data.error || 'Signup failed';
+  async function handleAuth(endpoint, email, password) {
+    try {
+      const res = await fetch(`/${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password })
+      });
+      if (!res.ok) {
+        const error = await res.text();
+        showError(error);
+      } else {
+        authSection.style.display = "none";
+        mainApp.style.display = "block";
+      }
+    } catch (err) {
+      showError("Server error. Please try again.");
+    }
+  }
+
+  if (signupForm) {
+    signupForm.addEventListener("submit", e => {
+      e.preventDefault();
+      const email = document.getElementById("signupEmail").value;
+      const password = document.getElementById("signupPassword").value;
+      handleAuth("signup", email, password);
+    });
+  }
+
+  if (loginForm) {
+    loginForm.addEventListener("submit", e => {
+      e.preventDefault();
+      const email = document.getElementById("loginEmail").value;
+      const password = document.getElementById("loginPassword").value;
+      handleAuth("login", email, password);
+    });
+  }
+
+  if (forgotLink) {
+    forgotLink.addEventListener("click", (e) => {
+      e.preventDefault();
+      const email = document.getElementById("loginEmail").value;
+      if (!email) return showError("Enter your email first.");
+      fetch("/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email })
+      }).then(res => {
+        if (res.ok) {
+          alert("Password reset link sent.");
+        } else {
+          showError("Failed to send reset link.");
+        }
+      }).catch(() => showError("Error sending request."));
+    });
   }
 });
-
-document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const email = document.getElementById('loginEmail').value;
-  const password = document.getElementById('loginPassword').value;
-
-  const response = await fetch('/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password })
-  });
-
-  const data = await response.json();
-  if (response.ok) {
-    document.getElementById('authSection').style.display = 'none';
-    document.getElementById('mainApp').style.display = 'block';
-    loadDocuments();
-  } else {
-    document.getElementById('authError').textContent = data.error || 'Login failed';
-  }
-});
-
-document.getElementById('forgotLink')?.addEventListener('click', async (e) => {
-  e.preventDefault();
-  const email = prompt('Enter your email for password reset:');
-  if (!email) return;
-
-  const response = await fetch('/forgot-password', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email })
-  });
-
-  const data = await response.json();
-  alert(response.ok ? 'Reset email sent!' : (data.error || 'Reset failed'));
-});
-
-document.getElementById('logoutBtn')?.addEventListener('click', async () => {
-  await fetch('/logout', { method: 'POST' });
-  location.reload();
-});
-
-document.getElementById('uploadForm')?.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const file = document.getElementById('fileInput').files[0];
-  if (!file) return alert('No file selected');
-
-  const formData = new FormData();
-  formData.append('file', file);
-
-  const response = await fetch('/upload', {
-    method: 'POST',
-    body: formData
-  });
-
-  if (response.ok) {
-    loadDocuments();
-  } else {
-    alert('Upload failed');
-  }
-});
-
-document.getElementById('askForm')?.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const question = document.getElementById('questionInput').value;
-
-  const response = await fetch('/ask', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question })
-  });
-
-  const data = await response.json();
-  document.getElementById('responseContainer').textContent = data.answer || 'No response';
-});
-
-async function loadDocuments() {
-  const res = await fetch('/files');
-  const files = await res.json();
-  const fileList = document.getElementById('fileList');
-  fileList.innerHTML = '';
-
-  files.forEach(filename => {
-    const li = document.createElement('li');
-    li.textContent = filename;
-
-    const del = document.createElement('button');
-    del.textContent = '❌';
-    del.onclick = async () => {
-      await fetch(`/delete?file=${encodeURIComponent(filename)}`, { method: 'DELETE' });
-      loadDocuments();
-    };
-
-    li.appendChild(del);
-    fileList.appendChild(li);
-  });
-}
