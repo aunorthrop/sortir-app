@@ -2,7 +2,7 @@ body {
   margin: 0;
   padding: 0;
   background: #0e0e0e;
-  font-family: 'Segoe UI', sans-serif;
+  font-family: sans-serif;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -10,11 +10,11 @@ body {
   color: white;
 }
 
-.container {
+.auth-container {
   background: #1a1a1a;
   padding: 2rem;
   border-radius: 8px;
-  width: 340px;
+  width: 320px;
   box-shadow: 0 0 12px rgba(0,255,255,0.1);
   text-align: center;
 }
@@ -24,25 +24,25 @@ body {
   margin-bottom: 20px;
 }
 
-.auth-form input {
+input {
   width: 100%;
   padding: 10px;
-  margin: 12px 0;
+  margin: 10px 0;
   background: #2a2a2a;
   border: none;
   border-radius: 4px;
   color: white;
 }
 
-.auth-form button {
+button {
   width: 100%;
   padding: 10px;
   margin-top: 10px;
   background: #00ffff;
   color: black;
   border: none;
-  font-weight: bold;
   border-radius: 4px;
+  font-weight: bold;
   cursor: pointer;
 }
 
