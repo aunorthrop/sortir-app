@@ -14,6 +14,13 @@ const upload = multer({ dest: "uploads/" });
 app.use(cors());
 app.use(express.json());
 app.use(express.static("public"));
+app.get("/", (req, res) => {
+  if (req.session && req.session.email) {
+    res.sendFile(path.join(__dirname, "public", "index.html"));
+  } else {
+    res.redirect("/login.html");
+  }
+});
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
