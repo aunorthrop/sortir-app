@@ -14,14 +14,24 @@ const OpenAI = require('openai');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Setup paths for persistent disk
+// Setup persistent paths
 const PERSIST_DIR = '/data';
 const USERS_FILE = path.join(PERSIST_DIR, 'users.json');
 const UPLOAD_DIR = path.join(PERSIST_DIR, 'uploads');
+const SESSION_DIR = path.join(PERSIST_DIR, 'sessions');
 
-// Ensure directories exist
-if (!fs.existsSync(PERSIST_DIR)) fs.mkdirSync(PERSIST_DIR);
-if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR);
+// Safely ensure folders exist only if disk is mounted
+try {
+  if (!fs.existsSync(PERSIST_DIR)) {
+    console.warn('[⚠️] /data not mounted. Add Render persistent disk to enable file storage.');
+  } else {
+    if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR);
+    if (!fs.existsSync(SESSION_DIR)) fs.mkdirSync(SESSION_DIR);
+    if (!fs.existsSync(USERS_FILE)) fs.writeFileSync(USERS_FILE, '{}');
+  }
+} catch (err) {
+  console.error('[🚫] Disk setup failed:', err.message);
+}
 
 // Middleware
 app.use(bodyParser.json());
@@ -29,7 +39,7 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 app.use(session({
-  store: new FileStore({ path: path.join(PERSIST_DIR, 'sessions') }),
+  store: new FileStore({ path: SESSION_DIR }),
   secret: process.env.SESSION_SECRET || 'your_secret_key',
   resave: false,
   saveUninitialized: false,
@@ -69,7 +79,7 @@ const saveUsers = (users) => {
   fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), 'utf8');
 };
 
-// File upload config
+// Upload config
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIR),
   filename: (req, file, cb) => cb(null, file.originalname)
@@ -77,19 +87,15 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // Routes
-
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
-
 app.get('/dashboard.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
 });
-
 app.get('/forgot-password.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'forgot-password.html'));
 });
-
 app.get('/reset-password.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'reset-password.html'));
 });
