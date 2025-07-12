@@ -1,32 +1,26 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta charset="UTF-8">
   <title>Sortir</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="logo">
-    <img src="sortir-logo.png" alt="Sortir Logo" />
-  </div>
-
+  <img src="sortir-logo.png" alt="Sortir Logo" class="logo">
   <div class="form-container">
     <div>
-      <input type="email" id="signup-email" placeholder="Email" />
-      <input type="password" id="signup-password" placeholder="Password" />
-      <button onclick="signup()">Sign Up</button>
+      <input type="email" id="signupEmail" placeholder="Email">
+      <input type="password" id="signupPassword" placeholder="Password">
+      <button onclick="signUp()">Sign Up</button>
     </div>
-
     <div>
-      <input type="email" id="login-email" placeholder="Email" />
-      <input type="password" id="login-password" placeholder="Password" />
-      <button onclick="login()">Log In</button>
-      <a href="#" onclick="forgotPassword()">Forgot Password?</a>
-      <div id="login-error" class="error"></div>
+      <input type="email" id="loginEmail" placeholder="Email">
+      <input type="password" id="loginPassword" placeholder="Password">
+      <button onclick="logIn()">Log In</button>
+      <p><a href="reset-password.html">Forgot Password?</a></p>
+      <p id="loginError" style="color:red;"></p>
     </div>
   </div>
-
   <script src="script.js"></script>
 </body>
 </html>
