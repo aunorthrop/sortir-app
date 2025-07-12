@@ -34,7 +34,7 @@ body {
 }
 
 .logo-container img {
-  max-width: 180px;
+  max-width: 220px;
 }
 
 /* --- Form Container & Tabs (Login/Signup) --- */
@@ -82,7 +82,8 @@ body {
 .form-container h2 {
     text-align: center;
     color: var(--primary-color);
-    margin-bottom: 0.5rem;
+    font-size: 28px;
+    margin-bottom: 1.5rem;
 }
 
 .form-description {
