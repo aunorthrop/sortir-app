@@ -7,33 +7,33 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="auth-container">
-    <div class="logo">
-      <img src="sortir-logo.png" alt="Sortir Logo" />
+  <div class="auth-wrapper">
+    <div class="logo-container">
+      <img src="sortir-logo.png" alt="Sortir Logo" class="auth-logo" />
     </div>
 
-    <div class="form-box">
-      <div class="tab-header">
-        <button id="loginTab" class="tab active" onclick="switchTab('login')">Login</button>
-        <button id="signupTab" class="tab" onclick="switchTab('signup')">Sign Up</button>
+    <div class="form-container">
+      <div class="auth-tabs">
+        <button id="loginTab" class="tab-link active" onclick="switchForm('login')">Login</button>
+        <button id="signupTab" class="tab-link" onclick="switchForm('signup')">Sign Up</button>
       </div>
 
       <!-- Login Form -->
-      <form id="loginForm" action="/login" method="POST" class="form active-form">
+      <form id="loginForm" class="auth-form active-form" action="/login" method="POST">
         <h2>Welcome Back</h2>
-        <p>Enter your email and password to access Sortir</p>
+        <p class="form-description">Log in to access your documents</p>
         <input type="email" name="email" placeholder="Email" required />
         <input type="password" name="password" placeholder="Password" required />
         <button type="submit">Login</button>
-        <div class="link-box">
-          <a href="forgot-password.html">Forgot Password?</a>
+        <div class="form-link">
+          <a href="forgot-password.html">Forgot your password?</a>
         </div>
       </form>
 
       <!-- Signup Form -->
-      <form id="signupForm" action="/signup" method="POST" class="form">
-        <h2>Create Account</h2>
-        <p>Sign up to start using Sortir</p>
+      <form id="signupForm" class="auth-form" action="/signup" method="POST">
+        <h2>Create Your Account</h2>
+        <p class="form-description">Start fresh with your Sortir dashboard</p>
         <input type="email" name="email" placeholder="Email" required />
         <input type="password" name="password" placeholder="Password" required />
         <button type="submit">Sign Up</button>
@@ -42,7 +42,7 @@
   </div>
 
   <script>
-    function switchTab(type) {
+    function switchForm(type) {
       const loginForm = document.getElementById('loginForm');
       const signupForm = document.getElementById('signupForm');
       const loginTab = document.getElementById('loginTab');
