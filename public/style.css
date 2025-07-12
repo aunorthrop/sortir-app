@@ -1,178 +1,172 @@
-/* --- Global Resets & Font --- */
-:root {
-  --primary-color: #00e5ff;
-  --dark-bg: #0e0e0e;
-  --medium-bg: #1a1a1a;
-  --light-bg: #2a2a2a;
-  --text-color: #e0e0e0;
-  --error-color: #ff5252;
-  --success-color: #4caf50;
-  --border-color: #2d2d2d;
+/* --- Dashboard Styles --- */
+.dashboard-container {
+    width: 100%;
+    max-width: 800px;
+    margin: 2rem auto;
+    padding: 20px;
 }
 
-body {
-  margin: 0;
-  font-family: 'Poppins', 'Arial', sans-serif;
-  background-color: var(--dark-bg);
-  color: var(--text-color);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
+.dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
 }
 
-/* --- Main Layout Wrapper --- */
-.auth-wrapper {
-  width: 100%;
-  max-width: 420px;
-  padding: 20px;
+.dashboard-logo {
+    max-width: 150px;
 }
 
-.logo-container {
-  text-align: center;
-  margin-bottom: 2rem;
-}
-
-.logo-container img {
-  max-width: 180px;
-}
-
-/* --- Form Container & Tabs --- */
-.form-container {
-  background-color: var(--medium-bg);
-  border: 1px solid var(--border-color);
-  padding: 2.5rem;
-  border-radius: 12px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
-}
-
-.auth-tabs {
-  display: flex;
-  margin-bottom: 1.5rem;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.tab-link {
-  flex: 1;
-  padding: 0.75rem;
-  background: none;
-  border: none;
-  color: var(--text-color);
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: color 0.3s, border-bottom 0.3s;
-  border-bottom: 3px solid transparent;
-}
-
-.tab-link.active {
-  color: var(--primary-color);
-  border-bottom-color: var(--primary-color);
-}
-
-/* --- Forms & Inputs --- */
-.auth-form {
-  display: none; /* Hidden by default */
-}
-
-.auth-form.active-form {
-  display: block; /* Shown when active */
-}
-
-h2 {
-    text-align: center;
+.logout-button {
+    background-color: var(--medium-bg);
     color: var(--primary-color);
-    margin-bottom: 0.5rem;
+    border: 1px solid var(--primary-color);
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.3s, color 0.3s;
 }
 
-.form-description {
-    text-align: center;
-    font-size: 0.9rem;
-    color: #aaa;
+.logout-button:hover {
+    background-color: var(--primary-color);
+    color: var(--dark-bg);
+}
+
+.card {
+    background-color: var(--medium-bg);
+    border: 1px solid var(--border-color);
+    padding: 1.5rem 2rem;
+    border-radius: 12px;
     margin-bottom: 1.5rem;
 }
 
-input[type="email"],
-input[type="password"] {
-  width: 100%;
-  padding: 14px;
-  margin-bottom: 1rem;
-  background-color: var(--light-bg);
-  border: 1px solid var(--border-color);
-  color: #fff;
-  border-radius: 8px;
-  font-size: 1rem;
-  box-sizing: border-box;
-  transition: border-color 0.3s, box-shadow 0.3s;
+/* Upload Card */
+#upload-form {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
 }
 
-input[type="email"]:focus,
-input[type="password"]:focus {
-  outline: none;
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(0, 229, 255, 0.2);
+.file-label {
+    background-color: var(--primary-color);
+    color: var(--dark-bg);
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+.file-label:hover {
+    background-color: #00bcd4;
 }
 
-button[type="submit"] {
-  width: 100%;
-  padding: 14px;
-  margin-top: 0.5rem;
-  background-color: var(--primary-color);
-  color: var(--dark-bg);
-  font-weight: 600;
-  font-size: 1rem;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background-color 0.3s, transform 0.2s;
+input[type="file"] {
+    display: none; /* Hide the default input */
 }
 
-button[type="submit"]:hover {
-  background-color: #00bcd4;
-  transform: translateY(-2px);
+#file-name-display {
+    flex-grow: 1;
+    color: #aaa;
+    font-style: italic;
 }
 
-/* --- Links & Messages --- */
-.form-link {
-  text-align: right;
-  margin-top: 1rem;
+#upload-form button {
+    background-color: var(--light-bg);
+    color: var(--primary-color);
+    border: 1px solid var(--primary-color);
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.3s, color 0.3s;
 }
 
-.form-link a {
-  color: #aaa;
-  font-size: 0.9em;
-  text-decoration: none;
-  transition: color 0.3s;
+#upload-form button:hover {
+    background-color: var(--primary-color);
+    color: var(--dark-bg);
 }
 
-.form-link a:hover {
-  color: var(--primary-color);
+/* Files List Card */
+.files-card h3 {
+    margin-top: 0;
+    color: var(--primary-color);
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.5rem;
 }
 
-.message,
-.error-message {
-  padding: 10px;
-  margin-top: 1rem;
-  border-radius: 6px;
-  text-align: center;
-  font-size: 0.9rem;
-  opacity: 0;
-  transform: translateY(-10px);
-  transition: opacity 0.3s, transform 0.3s;
+#file-list {
+    list-style: none;
+    padding: 0;
+    max-height: 200px;
+    overflow-y: auto;
 }
 
-.message.visible,
-.error-message.visible {
-  opacity: 1;
-  transform: translateY(0);
+.file-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+}
+.file-item:last-child {
+    border-bottom: none;
 }
 
-.error-message {
-  background-color: rgba(255, 82, 82, 0.1);
-  color: var(--error-color);
+.delete-btn {
+    background-color: var(--error-color);
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+.delete-btn:hover {
+    background-color: #d32f2f;
 }
 
-.success-message {
-  background-color: rgba(76, 175, 80, 0.15);
-  color: var(--success-color);
+/* Ask AI Card */
+#ask-form {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+#question-input {
+    flex-grow: 1;
+    padding: 12px;
+    background-color: var(--light-bg);
+    border: 1px solid var(--border-color);
+    color: #fff;
+    border-radius: 8px;
+    font-size: 1rem;
+}
+#question-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+#ask-form button {
+    background-color: var(--primary-color);
+    color: var(--dark-bg);
+    border: none;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.answer-box {
+    background-color: var(--dark-bg);
+    padding: 1rem;
+    border-radius: 8px;
+    min-height: 60px;
+    color: #ccc;
+    line-height: 1.6;
+}
+.answer-box .error-text {
+    color: var(--error-color);
 }
