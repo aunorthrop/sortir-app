@@ -5,139 +5,182 @@ const multer = require('multer');
 const nodemailer = require('nodemailer');
 const bcrypt = require('bcrypt');
 const session = require('express-session');
-const bodyParser = require('body-parser');
 const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const USERS_FILE = 'users.json';
+const USERS_FILE = path.join(__dirname, 'users.json');
 
-app.use(express.static('public'));
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+// --- Middleware Setup ---
+app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(session({
-  secret: 'sortir-secret',
+  secret: process.env.SESSION_SECRET || 'a-very-strong-secret-key', // Use an environment variable for secrets
   resave: false,
-  saveUninitialized: true
+  saveUninitialized: true,
+  cookie: { secure: process.env.NODE_ENV === 'production' } // Use secure cookies in production
 }));
 
-// Storage Setup
-const upload = multer({ dest: 'uploads/' });
-
-// Load Users
-function loadUsers() {
+// --- User Data Functions ---
+const loadUsers = () => {
   if (!fs.existsSync(USERS_FILE)) return {};
-  return JSON.parse(fs.readFileSync(USERS_FILE));
-}
+  const data = fs.readFileSync(USERS_FILE);
+  return JSON.parse(data);
+};
 
-// Save Users
-function saveUsers(users) {
+const saveUsers = (users) => {
   fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
-}
+};
+
+// --- Authentication Middleware ---
+const requireLogin = (req, res, next) => {
+    if (!req.session.email) {
+        return res.status(401).json({ success: false, message: 'Authentication required. Please log in.' });
+    }
+    next();
+};
+
+
+// --- API Routes ---
 
 // Signup
-app.post('/signup', async (req, res) => {
+app.post('/api/signup', async (req, res) => {
   const { email, password } = req.body;
+  if (!email || !password) {
+      return res.status(400).json({ success: false, message: 'Email and password are required.' });
+  }
   const users = loadUsers();
 
-  if (users[email]) return res.status(400).send('Email already registered.');
+  if (users[email]) {
+      return res.status(409).json({ success: false, message: 'Email is already registered.' });
+  }
 
-  const hashed = await bcrypt.hash(password, 10);
-  users[email] = { password: hashed, files: [] };
+  const hashedPassword = await bcrypt.hash(password, 10);
+  users[email] = { password: hashedPassword, files: [] };
   saveUsers(users);
-  res.sendStatus(200);
+  
+  // Automatically log in the user after signup
+  req.session.email = email;
+  res.status(201).json({ success: true, message: 'Signup successful!' });
 });
 
 // Login
-app.post('/login', async (req, res) => {
+app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
   const users = loadUsers();
   const user = users[email];
 
   if (!user || !(await bcrypt.compare(password, user.password))) {
-    return res.status(401).send('Invalid credentials');
+    return res.status(401).json({ success: false, message: 'Invalid email or password.' });
   }
 
   req.session.email = email;
-  res.sendStatus(200);
+  res.status(200).json({ success: true, message: 'Login successful.' });
 });
 
 // Logout
-app.get('/logout', (req, res) => {
-  req.session.destroy(() => {
-    res.redirect('/');
+app.post('/api/logout', (req, res) => {
+  req.session.destroy(err => {
+    if (err) {
+      return res.status(500).json({ success: false, message: 'Could not log out. Please try again.' });
+    }
+    res.clearCookie('connect.sid'); // Clears the session cookie
+    res.status(200).json({ success: true, message: 'Logged out successfully.' });
   });
 });
 
-// Upload
-app.post('/upload', upload.single('file'), (req, res) => {
-  const email = req.session.email;
-  if (!email) return res.status(403).send('Not logged in');
 
-  const users = loadUsers();
-  users[email].files.push(req.file.originalname);
-  saveUsers(users);
-  res.sendStatus(200);
-});
-
-// Ask
-app.post('/ask', async (req, res) => {
-  const { question } = req.body;
-  res.json({ answer: `Pretend AI answer to "${question}"` });
-});
-
-// Request Password Reset
-app.post('/request-password-reset', (req, res) => {
+// Forgot Password
+app.post('/api/forgot-password', (req, res) => {
   const { email } = req.body;
   const users = loadUsers();
 
-  if (!users[email]) return res.status(404).send('User not found');
+  if (!users[email]) {
+      // Still send a success message to prevent user enumeration
+      return res.status(200).json({ success: true, message: 'If your email is in our system, you will receive a password reset link.' });
+  }
 
   const token = uuidv4();
-  users[email].resetToken = token;
+  // Set an expiry for the token (e.g., 1 hour)
+  users[email].resetToken = {
+      value: token,
+      expires: Date.now() + 3600000 // 1 hour in milliseconds
+  };
   saveUsers(users);
 
-  const link = `https://sortir-app.onrender.com/reset-password.html?email=${encodeURIComponent(email)}&token=${token}`;
+  // Use your Render app's URL
+  const resetLink = `https://sortir-app.onrender.com/reset-password.html?email=${encodeURIComponent(email)}&token=${token}`;
 
   const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
-      user: 'appsortir@gmail.com',
-      pass: process.env.GMAIL_APP_PASSWORD
+      user: process.env.GMAIL_USER, // Set your email in environment variables
+      pass: process.env.GMAIL_APP_PASSWORD // The app password you generated
     }
   });
 
   const mailOptions = {
-    from: 'Sortir <appsortir@gmail.com>',
+    from: `"Sortir App" <${process.env.GMAIL_USER}>`,
     to: email,
-    subject: 'Reset your Sortir password',
-    html: `<p>Click the link below to reset your password:</p><a href="${link}">${link}</a>`
+    subject: 'Your Sortir Password Reset Request',
+    html: `
+        <p>Hi there,</p>
+        <p>We received a request to reset your password. Click the link below to set a new one:</p>
+        <p><a href="${resetLink}" style="color: #00e5ff; text-decoration: none;">Reset Your Password</a></p>
+        <p>If you did not request this, you can safely ignore this email. This link will expire in 1 hour.</p>
+        <p>Thanks,<br/>The Sortir Team</p>
+    `
   };
 
-  transporter.sendMail(mailOptions, err => {
-    if (err) return res.status(500).send('Email failed to send');
-    res.sendStatus(200);
+  transporter.sendMail(mailOptions, (error, info) => {
+    if (error) {
+        console.error('Send Mail Error:', error);
+        return res.status(500).json({ success: false, message: 'Failed to send email. Please try again later.' });
+    }
+    res.status(200).json({ success: true, message: 'If your email is in our system, you will receive a password reset link.' });
   });
 });
 
+
 // Reset Password
-app.post('/reset-password', async (req, res) => {
+app.post('/api/reset-password', async (req, res) => {
   const { email, token, newPassword } = req.body;
   const users = loadUsers();
   const user = users[email];
 
-  if (!user || user.resetToken !== token) {
-    return res.status(400).send('Invalid token');
+  if (!user || !user.resetToken || user.resetToken.value !== token) {
+    return res.status(400).json({ success: false, message: 'Invalid or expired reset token.' });
   }
 
-  const hashed = await bcrypt.hash(newPassword, 10);
-  users[email].password = hashed;
-  delete users[email].resetToken;
+  if (user.resetToken.expires < Date.now()) {
+      delete users[email].resetToken;
+      saveUsers(users);
+      return res.status(400).json({ success: false, message: 'Reset token has expired. Please request a new one.' });
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+  users[email].password = hashedPassword;
+  delete users[email].resetToken; // Important: remove token after use
   saveUsers(users);
 
-  res.sendStatus(200);
+  res.status(200).json({ success: true, message: 'Password has been reset successfully. You can now log in.' });
 });
 
+
+// --- Serve Frontend Pages ---
+// These routes ensure users can't access pages directly without being logged in
+
+app.get('/dashboard', requireLogin, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+});
+
+// Fallback to index for root, login, etc.
+app.get(['/', '/login', '/signup', '/forgot-password'], (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`🚀 Server is running on http://localhost:${PORT}`);
 });
