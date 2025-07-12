@@ -1,1 +1,7 @@
-{}
+{
+  "person@example.com": {
+    "password": "<hashed_password_here>",
+    "resetToken": null,
+    "files": []
+  }
+}
