@@ -1,106 +1,56 @@
 body {
+  background: #121212;
+  color: white;
+  font-family: sans-serif;
   margin: 0;
   padding: 0;
-  font-family: 'Segoe UI', sans-serif;
-  background-color: #111;
-  color: #eee;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-}
-
-.auth-wrapper {
-  background-color: #1e1e1e;
-  padding: 40px;
-  border-radius: 12px;
-  box-shadow: 0 0 12px rgba(0, 255, 255, 0.2);
-  width: 90%;
-  max-width: 420px;
   text-align: center;
 }
 
-.logo-container img {
-  width: 140px;
+.container {
+  padding: 2rem;
+  max-width: 600px;
+  margin: auto;
+}
+
+.logo {
+  width: 100px;
   margin-bottom: 20px;
 }
 
-.auth-tabs {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 20px;
+h1 {
+  margin-bottom: 1rem;
 }
 
-.tab-link {
-  flex: 1;
-  background: none;
+input[type="file"],
+button {
+  padding: 0.5rem;
+  margin: 10px 5px;
   border: none;
-  color: #ccc;
-  font-size: 16px;
-  padding: 10px;
+  border-radius: 4px;
+}
+
+input[type="file"] {
+  background: #1e1e1e;
+  color: white;
+}
+
+button {
+  background: teal;
+  color: white;
   cursor: pointer;
-  transition: all 0.3s ease;
 }
 
-.tab-link.active {
-  color: #00f5d4;
-  font-weight: bold;
-  border-bottom: 2px solid #00f5d4;
+ul {
+  list-style: none;
+  padding: 0;
 }
 
-.auth-form {
-  display: none;
-  flex-direction: column;
+li {
+  margin: 0.5rem 0;
 }
 
-.auth-form.active-form {
-  display: flex;
-  flex-direction: column;
-}
-
-.auth-form h2 {
-  margin: 10px 0;
-  color: #fff;
-}
-
-.form-description {
-  font-size: 14px;
-  margin-bottom: 20px;
-  color: #bbb;
-}
-
-input[type="email"],
-input[type="password"] {
-  padding: 12px;
-  margin: 8px 0;
-  border: none;
-  border-radius: 6px;
-  background-color: #333;
-  color: #fff;
-}
-
-button[type="submit"] {
-  margin-top: 12px;
-  padding: 12px;
-  background-color: #00f5d4;
-  color: #000;
-  font-weight: bold;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background 0.3s;
-}
-
-button[type="submit"]:hover {
-  background-color: #0ff;
-}
-
-.form-link {
-  margin-top: 12px;
-}
-
-.form-link a {
-  color: #00f5d4;
-  text-decoration: none;
-  font-size: 14px;
+li button {
+  margin-left: 10px;
+  background: crimson;
 }
