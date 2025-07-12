@@ -1,7 +1,1 @@
-{
-  "example@example.com": {
-    "password": "$2b$10$sXbkkCefQuFzWJ7LKk66qun2Avsp5roA1xAKk3QXpyXQbkUQWZ1Ni",
-    "resetToken": null,
-    "files": []
-  }
-}
+{}
