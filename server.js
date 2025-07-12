@@ -85,7 +85,42 @@ app.post("/ask", async (req, res) => {
     res.status(500).json({ error: "OpenAI request failed" });
   }
 });
+const session = require("express-session");
+app.use(session({
+  secret: "sortir_secret_key",
+  resave: false,
+  saveUninitialized: true,
+}));
 
+const USERS_FILE = path.join(__dirname, "data", "users.json");
+if (!fs.existsSync(USERS_FILE)) fs.writeFileSync(USERS_FILE, JSON.stringify({}));
+
+const loadUsers = () => JSON.parse(fs.readFileSync(USERS_FILE));
+const saveUsers = (data) => fs.writeFileSync(USERS_FILE, JSON.stringify(data, null, 2));
+
+app.post("/signup", (req, res) => {
+  const { email, password } = req.body;
+  const users = loadUsers();
+  if (users[email]) return res.status(400).send("Email already registered.");
+  users[email] = { password };
+  saveUsers(users);
+  req.session.user = email;
+  res.redirect("/index.html");
+});
+
+app.post("/login", (req, res) => {
+  const { email, password } = req.body;
+  const users = loadUsers();
+  if (!users[email] || users[email].password !== password) {
+    return res.status(401).send("Invalid credentials.");
+  }
+  req.session.user = email;
+  res.redirect("/index.html");
+});
+
+app.get("/logout", (req, res) => {
+  req.session.destroy(() => res.redirect("/login.html"));
+});
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
