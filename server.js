@@ -1,155 +1,149 @@
 const express = require('express');
 const multer = require('multer');
-const bcrypt = require('bcrypt');
-const bodyParser = require('body-parser');
-const nodemailer = require('nodemailer');
 const fs = require('fs');
 const path = require('path');
+const bcrypt = require('bcrypt');
+const bodyParser = require('body-parser');
+const cookieParser = require('cookie-parser');
+const nodemailer = require('nodemailer');
 const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
-// Middleware
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(express.static('public'));
-
-// Load or initialize user data
 const USERS_FILE = 'users.json';
-let users = {};
-if (fs.existsSync(USERS_FILE)) {
-  users = JSON.parse(fs.readFileSync(USERS_FILE, 'utf-8'));
-}
+const UPLOADS_DIR = 'uploads';
+const RESET_URL_BASE = 'https://sortir-app.onrender.com/reset-password.html?token=';
+const SENDER_EMAIL = 'appsortir@gmail.com';
+const SENDER_PASS = process.env.EMAIL_PASS;
 
-// Email sender setup
+let sessions = {};
+app.use(express.static('public'));
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(cookieParser());
+
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR);
+
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: 'appsortir@gmail.com',
-    pass: process.env.GMAIL_PASSWORD
+    user: SENDER_EMAIL,
+    pass: SENDER_PASS
   }
 });
 
-// Multer config for per-user directories
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const userDir = path.join(__dirname, 'uploads', req.sessionEmail);
-    fs.mkdirSync(userDir, { recursive: true });
-    cb(null, userDir);
-  },
-  filename: function (req, file, cb) {
-    cb(null, file.originalname);
-  }
+function loadUsers() {
+  return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
+}
+
+function saveUsers(users) {
+  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
+}
+
+function getEmailFromToken(token) {
+  const users = loadUsers();
+  return Object.keys(users).find(email => users[email].resetToken === token);
+}
+
+function getUserEmail(req) {
+  return sessions[req.cookies.session] || null;
+}
+
+const upload = multer({
+  dest: UPLOADS_DIR,
+  limits: { fileSize: 10 * 1024 * 1024 }
 });
-const upload = multer({ storage });
 
-// --- Session Management (simplified)
-const sessions = {};
-
-function createSession(email) {
-  const sessionId = uuidv4();
-  sessions[sessionId] = email;
-  return sessionId;
-}
-
-function getEmailFromSession(req) {
-  const sessionId = req.headers.cookie?.split('=')[1];
-  return sessions[sessionId];
-}
-
-// --- Routes ---
-
-// Signup
 app.post('/signup', async (req, res) => {
   const { email, password } = req.body;
-  if (users[email]) return res.status(400).send('User already exists.');
+  const users = loadUsers();
+  if (users[email]) return res.status(409).send('User already exists.');
   const hashed = await bcrypt.hash(password, 10);
-  users[email] = { password: hashed, resetToken: '', files: [] };
-  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
+  users[email] = { password: hashed, resetToken: "", files: [] };
+  saveUsers(users);
   res.sendStatus(200);
 });
 
-// Login
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
+  const users = loadUsers();
   const user = users[email];
   if (!user || !(await bcrypt.compare(password, user.password))) {
-    return res.status(401).send('Invalid credentials.');
+    return res.status(401).send('Invalid credentials');
   }
-  const sessionId = createSession(email);
-  res.setHeader('Set-Cookie', `session=${sessionId}; Path=/; HttpOnly`);
+  const sessionId = uuidv4();
+  sessions[sessionId] = email;
+  res.cookie('session', sessionId);
   res.sendStatus(200);
 });
 
-// Upload file
 app.post('/upload', upload.single('file'), (req, res) => {
-  const email = getEmailFromSession(req);
-  if (!email) return res.sendStatus(403);
-  users[email].files.push(req.file.originalname);
-  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
-  res.redirect('/vault.html');
-});
-
-// Get files
-app.get('/files', (req, res) => {
-  const email = getEmailFromSession(req);
-  if (!email) return res.sendStatus(403);
-  res.json(users[email].files || []);
-});
-
-// Delete file
-app.post('/delete-file', (req, res) => {
-  const email = getEmailFromSession(req);
-  if (!email) return res.sendStatus(403);
-  const { filename } = req.body;
-  const userDir = path.join(__dirname, 'uploads', email);
-  const filePath = path.join(userDir, filename);
-  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-  users[email].files = users[email].files.filter(f => f !== filename);
-  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
-  res.sendStatus(200);
-});
-
-// Send reset email
-app.post('/forgot-password', (req, res) => {
-  const { email } = req.body;
-  if (!users[email]) return res.status(404).send('Email not found');
-  const token = uuidv4();
-  users[email].resetToken = token;
-  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
-  const resetLink = `${req.protocol}://${req.get('host')}/reset-password.html?token=${token}`;
-  transporter.sendMail({
-    to: email,
-    subject: 'Sortir Password Reset',
-    text: `Reset your password: ${resetLink}`
-  }, (err) => {
-    if (err) return res.status(500).send('Email failed');
-    res.sendStatus(200);
-  });
-});
-
-// Reset password
-app.post('/reset-password', async (req, res) => {
-  const { token, newPassword } = req.body;
-  const user = Object.entries(users).find(([_, val]) => val.resetToken === token);
-  if (!user) return res.status(400).send('Invalid token');
-  const [email] = user;
-  users[email].password = await bcrypt.hash(newPassword, 10);
-  users[email].resetToken = '';
-  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
-  res.sendStatus(200);
-});
-
-// Logout
-app.get('/logout', (req, res) => {
-  const sessionId = req.headers.cookie?.split('=')[1];
-  delete sessions[sessionId];
-  res.setHeader('Set-Cookie', 'session=; Max-Age=0');
+  const email = getUserEmail(req);
+  if (!email) return res.redirect('/');
+  const users = loadUsers();
+  const filename = req.file.originalname;
+  const target = path.join(UPLOADS_DIR, email + '-' + filename);
+  fs.renameSync(req.file.path, target);
+  users[email].files.push(filename);
+  saveUsers(users);
   res.redirect('/');
 });
 
-// Start server
+app.get('/files', (req, res) => {
+  const email = getUserEmail(req);
+  if (!email) return res.json([]);
+  const users = loadUsers();
+  res.json(users[email].files || []);
+});
+
+app.post('/delete', (req, res) => {
+  const email = getUserEmail(req);
+  const filename = req.body.filename;
+  if (!email || !filename) return res.sendStatus(400);
+  const users = loadUsers();
+  const fullPath = path.join(UPLOADS_DIR, email + '-' + filename);
+  fs.unlinkSync(fullPath);
+  users[email].files = users[email].files.filter(f => f !== filename);
+  saveUsers(users);
+  res.sendStatus(200);
+});
+
+app.post('/forgot-password', (req, res) => {
+  const { email } = req.body;
+  const users = loadUsers();
+  if (!users[email]) return res.status(404).send('Not found');
+  const token = uuidv4();
+  users[email].resetToken = token;
+  saveUsers(users);
+
+  const resetUrl = `${RESET_URL_BASE}${token}`;
+  transporter.sendMail({
+    from: SENDER_EMAIL,
+    to: email,
+    subject: 'Sortir Password Reset',
+    html: `<p>Click to reset your password: <a href="${resetUrl}">${resetUrl}</a></p>`
+  });
+
+  res.sendStatus(200);
+});
+
+app.post('/reset-password', async (req, res) => {
+  const { token, password } = req.body;
+  const email = getEmailFromToken(token);
+  if (!email) return res.status(400).send('Invalid token');
+  const users = loadUsers();
+  users[email].password = await bcrypt.hash(password, 10);
+  users[email].resetToken = "";
+  saveUsers(users);
+  res.sendStatus(200);
+});
+
+app.get('/logout', (req, res) => {
+  const sessionId = req.cookies.session;
+  delete sessions[sessionId];
+  res.clearCookie('session');
+  res.redirect('/');
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
