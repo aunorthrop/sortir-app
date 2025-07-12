@@ -1,25 +1,37 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Sortir</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <img src="sortir-logo.png" alt="Sortir Logo" class="logo">
   <div class="form-container">
-    <div>
-      <input type="email" id="signupEmail" placeholder="Email">
-      <input type="password" id="signupPassword" placeholder="Password">
-      <button onclick="signUp()">Sign Up</button>
-    </div>
-    <div>
-      <input type="email" id="loginEmail" placeholder="Email">
-      <input type="password" id="loginPassword" placeholder="Password">
-      <button onclick="logIn()">Log In</button>
-      <p><a href="reset-password.html">Forgot Password?</a></p>
-      <p id="loginError" style="color:red;"></p>
-    </div>
+    <h2>Sign Up</h2>
+    <input id="signup-email" type="email" placeholder="Email" />
+    <input id="signup-password" type="password" placeholder="Password" />
+    <button onclick="signup()">Sign Up</button>
+
+    <h2>Login</h2>
+    <input id="login-email" type="email" placeholder="Email" />
+    <input id="login-password" type="password" placeholder="Password" />
+    <button onclick="login()">Login</button>
+    <button onclick="forgotPassword()">Forgot Password</button>
+
+    <button onclick="logout()">Logout</button>
+
+    <h2>Upload Documents</h2>
+    <input type="file" id="file" />
+    <button onclick="upload()">Upload</button>
+
+    <h2>Your Vault</h2>
+    <ul id="file-list"></ul>
+
+    <h2>Ask Sortir</h2>
+    <input id="question" placeholder="Ask something..." />
+    <button onclick="ask()">Ask</button>
+    <p id="answer"></p>
   </div>
   <script src="script.js"></script>
 </body>
