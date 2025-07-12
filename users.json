@@ -1,11 +1,11 @@
 {
   "user1@example.com": {
-    "password": "$2b$10$EXAMPLEHASHEDPASSWORD1234567890abcdefghijk",
+    "password": "$2b$12$rSdkb8JE8uvlFxPrj680COzEj5IlMEiQ5Fcge3EsELQvkacdWazuO", 
     "resetToken": "",
     "files": ["invoice1.pdf", "notes.txt"]
   },
   "user2@example.com": {
-    "password": "$2b$10$DIFFERENTHASHEDPASSWORD0987654321zyxwvutsr",
+    "password": "$2b$12$AAgJX8aFlMXAKgIryJOPJu77K60lNsYbw7mNtO9ZT8dvj1bzuGvMS",
     "resetToken": "",
     "files": ["plan.pdf", "summary.docx"]
   }
