@@ -14,26 +14,19 @@ const OpenAI = require('openai');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Setup persistent paths
-const PERSIST_DIR = '/data';
+// === Safe Relative Path Setup ===
+const PERSIST_DIR = path.join(__dirname, 'data');
 const USERS_FILE = path.join(PERSIST_DIR, 'users.json');
 const UPLOAD_DIR = path.join(PERSIST_DIR, 'uploads');
 const SESSION_DIR = path.join(PERSIST_DIR, 'sessions');
 
-// Safely ensure folders exist only if disk is mounted
-try {
-  if (!fs.existsSync(PERSIST_DIR)) {
-    console.warn('[⚠️] /data not mounted. Add Render persistent disk to enable file storage.');
-  } else {
-    if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR);
-    if (!fs.existsSync(SESSION_DIR)) fs.mkdirSync(SESSION_DIR);
-    if (!fs.existsSync(USERS_FILE)) fs.writeFileSync(USERS_FILE, '{}');
-  }
-} catch (err) {
-  console.error('[🚫] Disk setup failed:', err.message);
-}
+// Ensure folders exist
+if (!fs.existsSync(PERSIST_DIR)) fs.mkdirSync(PERSIST_DIR);
+if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR);
+if (!fs.existsSync(SESSION_DIR)) fs.mkdirSync(SESSION_DIR);
+if (!fs.existsSync(USERS_FILE)) fs.writeFileSync(USERS_FILE, '{}');
 
-// Middleware
+// === Middleware ===
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -43,15 +36,12 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'your_secret_key',
   resave: false,
   saveUninitialized: false,
-  cookie: {
-    secure: false,
-    maxAge: 24 * 60 * 60 * 1000
-  }
+  cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 }
 }));
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Email
+// === Email ===
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -60,16 +50,15 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-// OpenAI
+// === OpenAI ===
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
-// Helpers
+// === Helpers ===
 const loadUsers = () => {
   try {
-    const data = fs.readFileSync(USERS_FILE, 'utf8');
-    return JSON.parse(data);
+    return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
   } catch {
     return {};
   }
@@ -79,34 +68,23 @@ const saveUsers = (users) => {
   fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), 'utf8');
 };
 
-// Upload config
+// === Upload Config ===
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIR),
   filename: (req, file, cb) => cb(null, file.originalname)
 });
 const upload = multer({ storage });
 
-// Routes
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-app.get('/dashboard.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
-});
-app.get('/forgot-password.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'forgot-password.html'));
-});
-app.get('/reset-password.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'reset-password.html'));
-});
+// === Routes ===
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get('/dashboard.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'dashboard.html')));
+app.get('/forgot-password.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'forgot-password.html')));
+app.get('/reset-password.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'reset-password.html')));
 
 app.post('/api/signup', async (req, res) => {
   const { email, password } = req.body;
   const users = loadUsers();
-
-  if (users[email]) {
-    return res.status(409).json({ success: false, message: 'Email already registered.' });
-  }
+  if (users[email]) return res.status(409).json({ success: false, message: 'Email already registered.' });
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -122,10 +100,7 @@ app.post('/api/signup', async (req, res) => {
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
   const users = loadUsers();
-
-  if (!users[email]) {
-    return res.status(400).json({ success: false, message: 'Invalid credentials.' });
-  }
+  if (!users[email]) return res.status(400).json({ success: false, message: 'Invalid credentials.' });
 
   try {
     const isMatch = await bcrypt.compare(password, users[email].password);
@@ -143,16 +118,10 @@ app.post('/api/login', async (req, res) => {
 app.post('/api/forgot-password', (req, res) => {
   const { email } = req.body;
   const users = loadUsers();
-
-  if (!users[email]) {
-    return res.status(200).json({ success: true, message: 'If email exists, reset link sent.' });
-  }
+  if (!users[email]) return res.status(200).json({ success: true, message: 'If email exists, reset link sent.' });
 
   const token = uuidv4();
-  users[email].resetToken = {
-    value: token,
-    expires: Date.now() + 3600000
-  };
+  users[email].resetToken = { value: token, expires: Date.now() + 3600000 };
   saveUsers(users);
 
   const resetLink = `https://sortir-app.onrender.com/reset-password.html?email=${encodeURIComponent(email)}&token=${token}`;
@@ -164,9 +133,7 @@ app.post('/api/forgot-password', (req, res) => {
   };
 
   transporter.sendMail(mailOptions, (err) => {
-    if (err) {
-      return res.status(500).json({ success: false, message: 'Failed to send email.' });
-    }
+    if (err) return res.status(500).json({ success: false, message: 'Failed to send email.' });
     res.status(200).json({ success: true, message: 'Reset link sent.' });
   });
 });
@@ -174,20 +141,14 @@ app.post('/api/forgot-password', (req, res) => {
 app.post('/api/reset-password', async (req, res) => {
   const { email, token, newPassword } = req.body;
   const users = loadUsers();
-
   const user = users[email];
-  if (!user || !user.resetToken) {
-    return res.status(400).json({ success: false, message: 'Invalid reset.' });
-  }
+  if (!user || !user.resetToken) return res.status(400).json({ success: false, message: 'Invalid reset.' });
 
   const valid = user.resetToken.value === token && Date.now() < user.resetToken.expires;
-  if (!valid) {
-    return res.status(400).json({ success: false, message: 'Expired or invalid token.' });
-  }
+  if (!valid) return res.status(400).json({ success: false, message: 'Expired or invalid token.' });
 
   try {
-    const hashed = await bcrypt.hash(newPassword, 10);
-    users[email].password = hashed;
+    users[email].password = await bcrypt.hash(newPassword, 10);
     users[email].resetToken = null;
     saveUsers(users);
     res.status(200).json({ success: true, message: 'Password reset.' });
@@ -199,10 +160,7 @@ app.post('/api/reset-password', async (req, res) => {
 app.post('/api/upload', upload.single('file'), (req, res) => {
   const users = loadUsers();
   const userId = req.session.userId;
-
-  if (!req.file || !userId || !users[userId]) {
-    return res.status(401).json({ success: false, message: 'Unauthorized or no file.' });
-  }
+  if (!req.file || !userId || !users[userId]) return res.status(401).json({ success: false, message: 'Unauthorized or no file.' });
 
   if (!users[userId].files.includes(req.file.filename)) {
     users[userId].files.push(req.file.filename);
@@ -215,15 +173,9 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
 app.get('/api/files', (req, res) => {
   const users = loadUsers();
   const userId = req.session.userId;
+  if (!userId || !users[userId]) return res.status(401).json({ success: false, message: 'Unauthorized.' });
 
-  if (!userId || !users[userId]) {
-    return res.status(401).json({ success: false, message: 'Unauthorized.' });
-  }
-
-  const files = users[userId].files.filter(f =>
-    fs.existsSync(path.join(UPLOAD_DIR, f))
-  );
-
+  const files = users[userId].files.filter(f => fs.existsSync(path.join(UPLOAD_DIR, f)));
   res.status(200).json({ success: true, files });
 });
 
@@ -231,13 +183,9 @@ app.post('/api/delete-file', (req, res) => {
   const { filename } = req.body;
   const users = loadUsers();
   const userId = req.session.userId;
-
-  if (!userId || !users[userId]) {
-    return res.status(401).json({ success: false, message: 'Unauthorized.' });
-  }
+  if (!userId || !users[userId]) return res.status(401).json({ success: false, message: 'Unauthorized.' });
 
   const filePath = path.join(UPLOAD_DIR, filename);
-
   if (fs.existsSync(filePath)) {
     fs.unlinkSync(filePath);
     users[userId].files = users[userId].files.filter(f => f !== filename);
@@ -250,10 +198,7 @@ app.post('/api/delete-file', (req, res) => {
 
 app.post('/api/ask', async (req, res) => {
   const { question } = req.body;
-
-  if (!question) {
-    return res.status(400).json({ success: false, message: 'Question is required.' });
-  }
+  if (!question) return res.status(400).json({ success: false, message: 'Question is required.' });
 
   try {
     const completion = await openai.chat.completions.create({
