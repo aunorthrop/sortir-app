@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sortir Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="logo">
+    <img src="sortir-logo.png" alt="Sortir Logo" />
+  </div>
+
+  <div class="form-container">
+    <h2>Upload Documents</h2>
+    <form id="uploadForm" enctype="multipart/form-data">
+      <input type="file" id="fileInput" name="file" required />
+      <button type="submit">Upload</button>
+    </form>
+    <ul id="file-list"></ul>
+  </div>
+
+  <div class="form-container">
+    <h2>Ask Sortir</h2>
+    <input type="text" id="ask-input" placeholder="Ask something..." />
+    <button onclick="askSortir()">Ask</button>
+    <div id="answer-area"></div>
+  </div>
+
+  <div class="form-container">
+    <button onclick="logout()">Logout</button>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
