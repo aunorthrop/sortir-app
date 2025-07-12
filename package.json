@@ -1,7 +1,7 @@
 {
   "name": "sortir-app",
   "version": "1.0.0",
-  "description": "Internal SOP assistant for small businesses",
+  "description": "Internal data assistant for small businesses",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
