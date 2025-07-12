@@ -1,3 +1,4 @@
+// Place this at root level
 const express = require('express');
 const session = require('express-session');
 const fileUpload = require('express-fileupload');
@@ -22,40 +23,41 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(fileUpload());
 app.use(express.static('public'));
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'SortirSecret123',
-  resave: false,
-  saveUninitialized: false,
-}));
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || 'SortTierSession123',
+    resave: false,
+    saveUninitialized: false,
+  })
+);
 
-// Load/Save users
 function loadUsers() {
   if (!fs.existsSync(USERS_FILE)) return {};
   return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
 }
+
 function saveUsers(users) {
   fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
 }
 
-// Serve Pages
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public/login.html'));
 });
-app.get('/signup', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public/signup.html'));
-});
+
 app.get('/forgot-password', (req, res) => {
   res.sendFile(path.join(__dirname, 'public/forgot-password.html'));
 });
+
 app.get('/reset-password.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public/reset-password.html'));
 });
 
-// Signup
 app.post('/signup', async (req, res) => {
   const { email, password } = req.body;
   const users = loadUsers();
-  if (users[email]) return res.status(400).send('User already exists.');
+  if (users[email]) {
+    return res.status(400).send('User already exists.');
+  }
   const hashed = await bcrypt.hash(password, 10);
   users[email] = { password: hashed, files: [] };
   saveUsers(users);
@@ -63,7 +65,6 @@ app.post('/signup', async (req, res) => {
   res.redirect('/dashboard.html');
 });
 
-// Login
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
   const users = loadUsers();
@@ -74,18 +75,18 @@ app.post('/login', async (req, res) => {
   res.redirect('/dashboard.html');
 });
 
-// Logout
 app.get('/logout', (req, res) => {
-  req.session.destroy(() => res.redirect('/'));
+  req.session.destroy(() => {
+    res.redirect('/');
+  });
 });
 
-// Upload
 app.post('/upload', async (req, res) => {
   if (!req.session.user) return res.status(401).send('Unauthorized');
+  if (!req.files || !req.files.file) return res.status(400).send('No file uploaded.');
   const user = req.session.user;
   const users = loadUsers();
-  const file = req.files?.file;
-  if (!file) return res.status(400).send('No file uploaded.');
+  const file = req.files.file;
   const userDir = path.join(uploadDir, user);
   if (!fs.existsSync(userDir)) fs.mkdirSync(userDir, { recursive: true });
   const filePath = path.join(userDir, file.name);
@@ -95,20 +96,22 @@ app.post('/upload', async (req, res) => {
   res.redirect('/dashboard.html');
 });
 
-// Ask
 app.post('/ask', async (req, res) => {
   if (!req.session.user) return res.status(401).send('Unauthorized');
   const { question } = req.body;
   const user = req.session.user;
   const users = loadUsers();
   const files = users[user].files;
+
   let fullText = '';
   for (const f of files) {
     const data = fs.readFileSync(f.path);
     const parsed = await pdfParse(data);
     fullText += parsed.text + '\n';
   }
-  const prompt = `Answer the question using these documents:\n\n${fullText}\n\nQuestion: ${question}`;
+
+  const prompt = `Answer the question using the following documents:\n\n${fullText}\n\nQuestion: ${question}`;
+
   const completion = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -120,12 +123,12 @@ app.post('/ask', async (req, res) => {
       messages: [{ role: 'user', content: prompt }],
     }),
   });
+
   const data = await completion.json();
   const answer = data.choices?.[0]?.message?.content || 'No response';
   res.send(answer);
 });
 
-// Forgot Password
 app.post('/forgot-password', async (req, res) => {
   const { email } = req.body;
   const users = loadUsers();
@@ -134,6 +137,7 @@ app.post('/forgot-password', async (req, res) => {
   users[email].resetToken = token;
   users[email].resetExpires = Date.now() + 3600000;
   saveUsers(users);
+
   const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
@@ -141,30 +145,33 @@ app.post('/forgot-password', async (req, res) => {
       pass: process.env.EMAIL_PASS,
     },
   });
+
   const resetLink = `https://${req.headers.host}/reset-password.html?token=${token}&email=${email}`;
   await transporter.sendMail({
     to: email,
     subject: 'Password Reset for Sortir',
     html: `<p>Click <a href="${resetLink}">here</a> to reset your password. This link is valid for 1 hour.</p>`,
   });
+
   res.send('Check your email for a reset link.');
 });
 
-// Reset Password
 app.post('/reset-password', async (req, res) => {
   const { email, token, newPassword } = req.body;
   const users = loadUsers();
+
   if (!users[email] || users[email].resetToken !== token || Date.now() > users[email].resetExpires) {
     return res.status(400).send('Invalid or expired token.');
   }
+
   users[email].password = await bcrypt.hash(newPassword, 10);
   delete users[email].resetToken;
   delete users[email].resetExpires;
   saveUsers(users);
+
   res.send('Password reset successful. You can now log in.');
 });
 
-// Start server
 app.listen(PORT, () => {
-  console.log(`✅ Sortir running at http://localhost:${PORT}`);
+  console.log(`✅ Sortir app running on http://localhost:${PORT}`);
 });
