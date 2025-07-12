@@ -14,23 +14,34 @@ const OpenAI = require('openai');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Setup paths for persistent disk
+const PERSIST_DIR = '/data';
+const USERS_FILE = path.join(PERSIST_DIR, 'users.json');
+const UPLOAD_DIR = path.join(PERSIST_DIR, 'uploads');
+
+// Ensure directories exist
+if (!fs.existsSync(PERSIST_DIR)) fs.mkdirSync(PERSIST_DIR);
+if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR);
+
+// Middleware
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 app.use(session({
-  store: new FileStore({ path: path.join(__dirname, 'sessions') }),
+  store: new FileStore({ path: path.join(PERSIST_DIR, 'sessions') }),
   secret: process.env.SESSION_SECRET || 'your_secret_key',
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: false, // set to true if using HTTPS
-    maxAge: 24 * 60 * 60 * 1000 // 1 day
+    secure: false,
+    maxAge: 24 * 60 * 60 * 1000
   }
 }));
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Email
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -39,17 +50,12 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+// OpenAI
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
-const USERS_FILE = path.join(__dirname, 'users.json');
-const UPLOAD_DIR = path.join(__dirname, 'uploads');
-
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR);
-}
-
+// Helpers
 const loadUsers = () => {
   try {
     const data = fs.readFileSync(USERS_FILE, 'utf8');
@@ -63,13 +69,14 @@ const saveUsers = (users) => {
   fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), 'utf8');
 };
 
+// File upload config
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIR),
   filename: (req, file, cb) => cb(null, file.originalname)
 });
 const upload = multer({ storage });
 
-// --- Routes ---
+// Routes
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -100,9 +107,9 @@ app.post('/api/signup', async (req, res) => {
     users[email] = { password: hashedPassword, resetToken: null, files: [] };
     saveUsers(users);
     req.session.userId = email;
-    res.status(201).json({ success: true, message: 'Account created successfully!', redirect: '/dashboard.html' });
+    res.status(201).json({ success: true, message: 'Account created.', redirect: '/dashboard.html' });
   } catch {
-    res.status(500).json({ success: false, message: 'Server error during signup.' });
+    res.status(500).json({ success: false, message: 'Signup error.' });
   }
 });
 
@@ -118,12 +125,12 @@ app.post('/api/login', async (req, res) => {
     const isMatch = await bcrypt.compare(password, users[email].password);
     if (isMatch) {
       req.session.userId = email;
-      res.status(200).json({ success: true, message: 'Logged in successfully.', redirect: '/dashboard.html' });
+      res.status(200).json({ success: true, message: 'Logged in.', redirect: '/dashboard.html' });
     } else {
       res.status(400).json({ success: false, message: 'Invalid credentials.' });
     }
   } catch {
-    res.status(500).json({ success: false, message: 'Server error during login.' });
+    res.status(500).json({ success: false, message: 'Login error.' });
   }
 });
 
@@ -132,7 +139,7 @@ app.post('/api/forgot-password', (req, res) => {
   const users = loadUsers();
 
   if (!users[email]) {
-    return res.status(200).json({ success: true, message: 'If your email is in our system, you will receive a password reset link.' });
+    return res.status(200).json({ success: true, message: 'If email exists, reset link sent.' });
   }
 
   const token = uuidv4();
@@ -143,19 +150,18 @@ app.post('/api/forgot-password', (req, res) => {
   saveUsers(users);
 
   const resetLink = `https://sortir-app.onrender.com/reset-password.html?email=${encodeURIComponent(email)}&token=${token}`;
-
   const mailOptions = {
-    from: `"Sortir App" <${process.env.EMAIL_USER}>`,
+    from: `"Sortir" <${process.env.EMAIL_USER}>`,
     to: email,
-    subject: 'Your Sortir Password Reset Request',
-    html: `<p>Hi there,</p><p>We received a request to reset your password. Click the link below to set a new one:</p><p><a href="${resetLink}" style="color: #00e5ff;">Reset Your Password</a></p><p>This link will expire in 1 hour.</p><p>– The Sortir Team</p>`
+    subject: 'Reset your password',
+    html: `<p>Click below to reset:</p><a href="${resetLink}">Reset Password</a>`
   };
 
-  transporter.sendMail(mailOptions, (error) => {
-    if (error) {
-      return res.status(500).json({ success: false, message: 'Failed to send reset email.' });
+  transporter.sendMail(mailOptions, (err) => {
+    if (err) {
+      return res.status(500).json({ success: false, message: 'Failed to send email.' });
     }
-    res.status(200).json({ success: true, message: 'If your email is in our system, you will receive a reset link.' });
+    res.status(200).json({ success: true, message: 'Reset link sent.' });
   });
 });
 
@@ -163,28 +169,24 @@ app.post('/api/reset-password', async (req, res) => {
   const { email, token, newPassword } = req.body;
   const users = loadUsers();
 
-  if (!email || !token || !newPassword) {
-    return res.status(400).json({ success: false, message: 'Missing required fields.' });
-  }
-
   const user = users[email];
   if (!user || !user.resetToken) {
-    return res.status(400).json({ success: false, message: 'Invalid reset request.' });
+    return res.status(400).json({ success: false, message: 'Invalid reset.' });
   }
 
-  const isValid = user.resetToken.value === token && Date.now() < user.resetToken.expires;
-  if (!isValid) {
-    return res.status(400).json({ success: false, message: 'Reset token is invalid or expired.' });
+  const valid = user.resetToken.value === token && Date.now() < user.resetToken.expires;
+  if (!valid) {
+    return res.status(400).json({ success: false, message: 'Expired or invalid token.' });
   }
 
   try {
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-    users[email].password = hashedPassword;
+    const hashed = await bcrypt.hash(newPassword, 10);
+    users[email].password = hashed;
     users[email].resetToken = null;
     saveUsers(users);
-    res.status(200).json({ success: true, message: 'Password reset successful. You can now log in.' });
+    res.status(200).json({ success: true, message: 'Password reset.' });
   } catch {
-    res.status(500).json({ success: false, message: 'Failed to reset password.' });
+    res.status(500).json({ success: false, message: 'Reset error.' });
   }
 });
 
@@ -192,10 +194,8 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
   const users = loadUsers();
   const userId = req.session.userId;
 
-  console.log('Upload attempt from:', userId);
-
   if (!req.file || !userId || !users[userId]) {
-    return res.status(401).json({ success: false, message: 'Unauthorized or no file uploaded.' });
+    return res.status(401).json({ success: false, message: 'Unauthorized or no file.' });
   }
 
   if (!users[userId].files.includes(req.file.filename)) {
@@ -203,7 +203,7 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
     saveUsers(users);
   }
 
-  res.status(200).json({ success: true, message: 'File uploaded successfully!', filename: req.file.filename });
+  res.status(200).json({ success: true, filename: req.file.filename });
 });
 
 app.get('/api/files', (req, res) => {
@@ -211,14 +211,14 @@ app.get('/api/files', (req, res) => {
   const userId = req.session.userId;
 
   if (!userId || !users[userId]) {
-    return res.status(401).json({ success: false, message: 'Unauthorized' });
+    return res.status(401).json({ success: false, message: 'Unauthorized.' });
   }
 
-  const fileList = users[userId].files.filter(filename =>
-    fs.existsSync(path.join(UPLOAD_DIR, filename))
+  const files = users[userId].files.filter(f =>
+    fs.existsSync(path.join(UPLOAD_DIR, f))
   );
 
-  res.status(200).json({ success: true, files: fileList });
+  res.status(200).json({ success: true, files });
 });
 
 app.post('/api/delete-file', (req, res) => {
@@ -227,20 +227,16 @@ app.post('/api/delete-file', (req, res) => {
   const userId = req.session.userId;
 
   if (!userId || !users[userId]) {
-    return res.status(401).json({ success: false, message: 'Unauthorized' });
+    return res.status(401).json({ success: false, message: 'Unauthorized.' });
   }
 
   const filePath = path.join(UPLOAD_DIR, filename);
 
   if (fs.existsSync(filePath)) {
-    try {
-      fs.unlinkSync(filePath);
-      users[userId].files = users[userId].files.filter(f => f !== filename);
-      saveUsers(users);
-      res.status(200).json({ success: true, message: `${filename} deleted.` });
-    } catch {
-      res.status(500).json({ success: false, message: 'File deletion error.' });
-    }
+    fs.unlinkSync(filePath);
+    users[userId].files = users[userId].files.filter(f => f !== filename);
+    saveUsers(users);
+    res.status(200).json({ success: true, message: `${filename} deleted.` });
   } else {
     res.status(404).json({ success: false, message: 'File not found.' });
   }
@@ -262,21 +258,18 @@ app.post('/api/ask', async (req, res) => {
     const answer = completion.choices[0].message.content;
     res.status(200).json({ success: true, answer });
   } catch {
-    res.status(500).json({ success: false, message: 'OpenAI API error.' });
+    res.status(500).json({ success: false, message: 'OpenAI error.' });
   }
 });
 
 app.get('/api/logout', (req, res) => {
   req.session.destroy(err => {
-    if (err) {
-      console.error('Logout error:', err);
-      return res.status(500).json({ success: false, message: 'Logout failed.' });
-    }
+    if (err) return res.status(500).json({ success: false, message: 'Logout failed.' });
     res.clearCookie('connect.sid');
     res.status(200).json({ success: true, message: 'Logged out.' });
   });
 });
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`✅ Server running on port ${PORT}`);
 });
