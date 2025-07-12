@@ -2,10 +2,23 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="refresh" content="0; url=login.html" />
-  <title>Redirecting...</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Login – Sortir</title>
+  <link rel="stylesheet" href="/style.css" />
 </head>
-<body>
-  <p>If you are not redirected, <a href="login.html">click here</a>.</p>
+<body class="auth-page">
+  <div class="auth-container">
+    <img src="/sortir-logo.png" alt="Sortir Logo" class="logo large-logo" />
+    <h2>Login</h2>
+    <form action="/login" method="POST">
+      <input type="email" name="email" placeholder="Email" required />
+      <input type="password" name="password" placeholder="Password" required />
+      <button type="submit">Log In</button>
+    </form>
+    <div class="auth-options">
+      <a href="/forgot-password">Forgot Password?</a> |
+      <a href="/signup">Sign Up</a>
+    </div>
+  </div>
 </body>
 </html>
