@@ -1,18 +1,24 @@
 {
   "name": "sortir-app",
   "version": "1.0.0",
-  "description": "Sortir – Internal document assistant for small businesses",
+  "description": "Sortir – A secure document vault with email-based login and reset",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "dotenv": "^16.0.3",
     "express": "^4.18.2",
+    "express-fileupload": "^1.4.0",
+    "body-parser": "^1.20.2",
+    "nodemailer": "^6.9.3",
+    "dotenv": "^16.3.1",
     "express-session": "^1.17.3",
-    "session-file-store": "^1.5.0",
-    "multer": "^1.4.5-lts.1",
-    "openai": "^4.20.0",
-    "pdf-parse": "^1.1.1"
-  }
+    "openai": "^4.30.0"
+  },
+  "engines": {
+    "node": ">=16.x"
+  },
+  "keywords": [],
+  "author": "Sortir",
+  "license": "MIT"
 }
