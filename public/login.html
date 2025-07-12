@@ -4,28 +4,50 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Login – Sortir</title>
-  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="auth-wrapper">
-    <div class="logo-container">
-      <img src="/sortir-logo.png" alt="Sortir Logo" />
-    </div>
-    <div class="form-container">
-      <h2>Login</h2>
-      <form action="/login" method="POST">
-        <input type="email" name="email" placeholder="Email" required />
-        <input type="password" name="password" placeholder="Password" required />
-        <button type="submit">Log In</button>
-      </form>
-      <div class="form-link">
-        <a href="/forgot-password">Forgot Password?</a> |
-        <a href="/signup">Sign Up</a>
-      </div>
-      <% if (error) { %>
-        <div class="error-message visible"><%= error %></div>
-      <% } %>
-    </div>
+  <div class="logo-container">
+    <img src="sortir-logo.png" alt="Sortir Logo" class="logo" />
   </div>
+
+  <div class="form-container">
+    <!-- Login Form -->
+    <form id="loginForm" action="/login" method="POST">
+      <h2>Login</h2>
+      <input type="email" name="email" placeholder="Email" required />
+      <input type="password" name="password" placeholder="Password" required />
+      <button type="submit">Log In</button>
+      <div class="form-footer">
+        <a href="/forgot-password.html">Forgot Password?</a> |
+        <a href="#" onclick="toggleForm('signup')">Sign Up</a>
+      </div>
+    </form>
+
+    <!-- Signup Form (Initially Hidden) -->
+    <form id="signupForm" action="/signup" method="POST" style="display: none;">
+      <h2>Sign Up</h2>
+      <input type="email" name="email" placeholder="Email" required />
+      <input type="password" name="password" placeholder="Password" required />
+      <button type="submit">Sign Up</button>
+      <div class="form-footer">
+        <a href="#" onclick="toggleForm('login')">Back to Login</a>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    function toggleForm(form) {
+      const loginForm = document.getElementById("loginForm");
+      const signupForm = document.getElementById("signupForm");
+      if (form === "signup") {
+        loginForm.style.display = "none";
+        signupForm.style.display = "block";
+      } else {
+        loginForm.style.display = "block";
+        signupForm.style.display = "none";
+      }
+    }
+  </script>
 </body>
 </html>
