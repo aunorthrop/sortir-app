@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sortir</title>
+  <title>Sortir App</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -11,20 +11,55 @@
     <img src="sortir-logo.png" alt="Sortir Logo" />
   </div>
 
-  <div class="form-container">
-    <h2>Login</h2>
-    <input type="email" id="login-email" placeholder="Email" />
-    <input type="password" id="login-password" placeholder="Password" />
-    <button onclick="login()">Login</button>
-    <div id="login-error" class="error-message"></div>
+  <div id="auth-container" class="form-container">
+    <!-- Sign Up -->
+    <form id="signup-form" class="auth-form">
+      <h2>Sign Up</h2>
+      <input type="email" id="signup-email" placeholder="Email" required />
+      <input type="password" id="signup-password" placeholder="Password" required />
+      <button type="submit">Sign Up</button>
+      <p class="error-message" id="signup-error"></p>
+    </form>
+
+    <!-- Login -->
+    <form id="login-form" class="auth-form">
+      <h2>Log In</h2>
+      <input type="email" id="login-email" placeholder="Email" required />
+      <input type="password" id="login-password" placeholder="Password" required />
+      <button type="submit">Log In</button>
+
+      <!-- ✅ Forgot Password Link -->
+      <p style="text-align: right; margin-top: 8px;">
+        <a href="reset-password.html" style="font-size: 0.9em; color: #ccc;">Forgot Password?</a>
+      </p>
+
+      <p class="error-message" id="login-error"></p>
+    </form>
   </div>
 
-  <div class="form-container">
-    <h2>Sign Up</h2>
-    <input type="email" id="signup-email" placeholder="Email" />
-    <input type="password" id="signup-password" placeholder="Password" />
-    <button onclick="signup()">Sign Up</button>
-    <div id="signup-error" class="error-message"></div>
+  <!-- 🔒 Dashboard only shown after login -->
+  <div id="dashboard" class="hidden">
+    <h2>Welcome to Sortir</h2>
+
+    <!-- Upload Documents -->
+    <form id="upload-form" enctype="multipart/form-data">
+      <label for="file">Upload PDF Documents</label>
+      <input type="file" id="file" name="file" accept=".pdf" required />
+      <button type="submit">Upload</button>
+    </form>
+
+    <!-- Uploaded Files List -->
+    <ul id="file-list"></ul>
+
+    <!-- Ask a Question -->
+    <form id="ask-form">
+      <input type="text" name="question" placeholder="Ask Sortir..." required />
+      <button type="submit">Ask</button>
+    </form>
+    <div id="answer"></div>
+
+    <!-- Logout -->
+    <button id="logout-btn">Logout</button>
   </div>
 
   <script src="script.js"></script>
