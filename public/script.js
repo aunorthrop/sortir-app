@@ -1,114 +1,158 @@
-// Signup function
-async function signup() {
-  const email = document.getElementById('signup-email').value;
-  const password = document.getElementById('signup-password').value;
-  const errorDiv = document.getElementById('signup-error');
+document.addEventListener('DOMContentLoaded', () => {
+  const signupForm = document.getElementById('signup-form');
+  const loginForm = document.getElementById('login-form');
+  const forgotForm = document.getElementById('forgot-form');
+  const resetForm = document.getElementById('reset-form');
+  const uploadForm = document.getElementById('upload-form');
+  const fileList = document.getElementById('file-list');
+  const askForm = document.getElementById('ask-form');
+  const answerDiv = document.getElementById('answer');
+  const errorMsg = document.getElementById('error-msg');
 
-  const res = await fetch('/signup', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password })
-  });
+  if (signupForm) {
+    signupForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = signupForm.email.value;
+      const password = signupForm.password.value;
 
-  const data = await res.json();
+      const res = await fetch('/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
 
-  if (res.ok) {
-    alert('Signup successful. Check your email.');
-    window.location.href = '/dashboard.html';
-  } else {
-    errorDiv.textContent = data.error || 'Signup failed';
-  }
-}
-
-// Login function
-async function login() {
-  const email = document.getElementById('login-email').value;
-  const password = document.getElementById('login-password').value;
-  const errorDiv = document.getElementById('login-error');
-
-  const res = await fetch('/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password })
-  });
-
-  const data = await res.json();
-
-  if (res.ok) {
-    window.location.href = '/dashboard.html';
-  } else {
-    errorDiv.textContent = data.error || 'Login failed';
-  }
-}
-
-// Logout function
-async function logout() {
-  await fetch('/logout', { method: 'POST' });
-  window.location.href = '/';
-}
-
-// Handle document upload
-const uploadForm = document.getElementById('uploadForm');
-if (uploadForm) {
-  uploadForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const fileInput = document.getElementById('fileInput');
-    const formData = new FormData();
-    formData.append('file', fileInput.files[0]);
-
-    const res = await fetch('/upload', {
-      method: 'POST',
-      body: formData
+      const data = await res.json();
+      if (data.success) {
+        window.location.href = '/dashboard';
+      } else {
+        errorMsg.textContent = data.message || 'Signup failed';
+      }
     });
+  }
 
-    if (res.ok) {
-      fileInput.value = '';
-      loadFiles(); // refresh file list
-    } else {
-      alert('Upload failed');
-    }
-  });
+  if (loginForm) {
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = loginForm.email.value;
+      const password = loginForm.password.value;
 
-  // Load uploaded file list
+      const res = await fetch('/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        window.location.href = '/dashboard';
+      } else {
+        errorMsg.textContent = data.message || 'Login failed';
+      }
+    });
+  }
+
+  if (forgotForm) {
+    forgotForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = forgotForm.email.value;
+
+      const res = await fetch('/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+
+      const data = await res.json();
+      errorMsg.textContent = data.success
+        ? 'Reset email sent'
+        : data.message || 'Error sending reset email';
+    });
+  }
+
+  if (resetForm) {
+    resetForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const params = new URLSearchParams(window.location.search);
+      const email = params.get('email');
+      const token = params.get('token');
+      const password = resetForm.password.value;
+
+      const res = await fetch('/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, token, password })
+      });
+
+      const data = await res.json();
+      errorMsg.textContent = data.success
+        ? 'Password reset successful'
+        : data.message || 'Reset failed';
+    });
+  }
+
+  if (uploadForm) {
+    uploadForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(uploadForm);
+
+      const res = await fetch('/upload', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        loadFiles();
+      } else {
+        alert('Upload failed');
+      }
+    });
+  }
+
   async function loadFiles() {
+    if (!fileList) return;
+
     const res = await fetch('/files');
     const files = await res.json();
-    const fileList = document.getElementById('file-list');
     fileList.innerHTML = '';
 
-    files.forEach(file => {
+    files.forEach((file) => {
       const li = document.createElement('li');
       li.textContent = file;
-      const delBtn = document.createElement('button');
-      delBtn.textContent = 'Delete';
-      delBtn.onclick = async () => {
-        await fetch(`/delete/${file}`, { method: 'DELETE' });
+
+      const btn = document.createElement('button');
+      btn.textContent = 'Delete';
+      btn.onclick = async () => {
+        await fetch('/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename: file })
+        });
         loadFiles();
       };
-      li.appendChild(delBtn);
+
+      li.appendChild(btn);
       fileList.appendChild(li);
     });
   }
 
-  loadFiles();
-}
+  if (askForm) {
+    askForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const question = askForm.question.value;
 
-// Ask Sortir
-async function askSortir() {
-  const question = document.getElementById('ask-input').value;
-  const answerArea = document.getElementById('answer-area');
+      const res = await fetch('/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question })
+      });
 
-  const res = await fetch('/ask', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question })
-  });
-
-  const data = await res.json();
-
-  if (res.ok) {
-    answerArea.textContent = data.answer;
-  } else {
-    answerArea.textContent = data.error || 'Something went wrong.';
+      const data = await res.json();
+      answerDiv.textContent = data.answer || 'Error retrieving answer';
+    });
   }
-}
+
+  if (fileList) {
+    loadFiles();
+  }
+});
