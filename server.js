@@ -9,7 +9,6 @@ const bodyParser = require('body-parser');
 const nodemailer = require('nodemailer');
 const dotenv = require('dotenv');
 const { v4: uuidv4 } = require('uuid');
-const fetch = require('node-fetch');
 
 dotenv.config();
 const app = express();
@@ -33,7 +32,7 @@ app.use(
   })
 );
 
-// ✅ Load and save users
+// Load & save users
 function loadUsers() {
   if (!fs.existsSync(USERS_FILE)) return {};
   return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
@@ -43,9 +42,13 @@ function saveUsers(users) {
   fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
 }
 
-// ✅ Serve static pages
+// ROUTES
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public/login.html'));
+});
+
+app.get('/signup', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public/signup.html'));
 });
 
 app.get('/forgot-password', (req, res) => {
@@ -56,17 +59,12 @@ app.get('/reset-password.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public/reset-password.html'));
 });
 
-app.get('/dashboard.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public/dashboard.html'));
-});
-
-// ✅ Signup
 app.post('/signup', async (req, res) => {
   const { email, password } = req.body;
   const users = loadUsers();
-  if (users[email]) {
-    return res.status(400).send('User already exists.');
-  }
+
+  if (users[email]) return res.status(400).send('User already exists.');
+
   const hashed = await bcrypt.hash(password, 10);
   users[email] = { password: hashed, files: [] };
   saveUsers(users);
@@ -74,47 +72,47 @@ app.post('/signup', async (req, res) => {
   res.redirect('/dashboard.html');
 });
 
-// ✅ Login
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
   const users = loadUsers();
+
   if (!users[email]) return res.status(400).send('Invalid email or password.');
   const valid = await bcrypt.compare(password, users[email].password);
   if (!valid) return res.status(401).send('Invalid email or password.');
+
   req.session.user = email;
   res.redirect('/dashboard.html');
 });
 
-// ✅ Logout
 app.get('/logout', (req, res) => {
-  req.session.destroy(() => {
-    res.redirect('/');
-  });
+  req.session.destroy(() => res.redirect('/'));
 });
 
-// ✅ Upload
 app.post('/upload', async (req, res) => {
   if (!req.session.user) return res.status(401).send('Unauthorized');
-  if (!req.files || !req.files.file) return res.status(400).send('No file uploaded.');
-  const user = req.session.user;
+  if (!req.files?.file) return res.status(400).send('No file uploaded.');
+
   const users = loadUsers();
   const file = req.files.file;
+  const user = req.session.user;
   const userDir = path.join(uploadDir, user);
-  if (!fs.existsSync(userDir)) fs.mkdirSync(userDir, { recursive: true });
+  if (!fs.existsSync(userDir)) fs.mkdirSync(userDir);
+
   const filePath = path.join(userDir, file.name);
   await file.mv(filePath);
+
   users[user].files.push({ name: file.name, path: filePath });
   saveUsers(users);
   res.redirect('/dashboard.html');
 });
 
-// ✅ Ask
 app.post('/ask', async (req, res) => {
   if (!req.session.user) return res.status(401).send('Unauthorized');
   const { question } = req.body;
   const user = req.session.user;
   const users = loadUsers();
   const files = users[user].files;
+
   let fullText = '';
   for (const f of files) {
     const data = fs.readFileSync(f.path);
@@ -141,11 +139,11 @@ app.post('/ask', async (req, res) => {
   res.send(answer);
 });
 
-// ✅ Forgot password
 app.post('/forgot-password', async (req, res) => {
   const { email } = req.body;
   const users = loadUsers();
   if (!users[email]) return res.status(400).send('No account with that email.');
+
   const token = uuidv4();
   users[email].resetToken = token;
   users[email].resetExpires = Date.now() + 3600000;
@@ -169,7 +167,6 @@ app.post('/forgot-password', async (req, res) => {
   res.send('Check your email for a reset link.');
 });
 
-// ✅ Reset password
 app.post('/reset-password', async (req, res) => {
   const { email, token, newPassword } = req.body;
   const users = loadUsers();
