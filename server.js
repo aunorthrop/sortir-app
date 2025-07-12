@@ -1,154 +1,199 @@
 const express = require('express');
 const session = require('express-session');
-const bcrypt = require('bcryptjs');
-const nodemailer = require('nodemailer');
 const fileUpload = require('express-fileupload');
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
-require('dotenv').config();
+const pdfParse = require('pdf-parse');
+const bcrypt = require('bcryptjs');
+const bodyParser = require('body-parser');
+const nodemailer = require('nodemailer');
+const dotenv = require('dotenv');
+const { v4: uuidv4 } = require('uuid');
 
+dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 const USERS_FILE = path.join(__dirname, 'data/users.json');
-const UPLOADS_DIR = path.join(__dirname, 'data/uploads');
 
-// Ensure required folders exist
-fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
-fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
-app.use(fileUpload());
-app.use(express.static(path.join(__dirname, 'public')));
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'SortirSecret123',
-  resave: false,
-  saveUninitialized: false,
-}));
-
-// Load users
-let users = {};
-if (fs.existsSync(USERS_FILE)) {
-  users = JSON.parse(fs.readFileSync(USERS_FILE));
+// ✅ Ensure upload folder exists
+const uploadDir = path.join(__dirname, 'data/uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-// Save users helper
-const saveUsers = () => {
-  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
-};
+// ✅ Middleware
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json());
+app.use(fileUpload());
+app.use(express.static('public'));
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || 'SortTierSession123',
+    resave: false,
+    saveUninitialized: false,
+  })
+);
 
-// Email transporter
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
+// ✅ Helper: Load users
+function loadUsers() {
+  if (!fs.existsSync(USERS_FILE)) return {};
+  return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
+}
+
+// ✅ Helper: Save users
+function saveUsers(users) {
+  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
+}
+
+// ✅ Route: Serve login/signup page
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public/login.html'));
 });
 
-// Routes
+// ✅ Route: Signup
 app.post('/signup', async (req, res) => {
   const { email, password } = req.body;
-  if (users[email]) return res.status(409).send('Email already registered.');
+  const users = loadUsers();
 
-  const passwordHash = await bcrypt.hash(password, 10);
-  users[email] = { passwordHash };
-  saveUsers();
+  if (users[email]) {
+    return res.status(400).send('User already exists. Try logging in or reset password.');
+  }
 
-  fs.mkdirSync(path.join(UPLOADS_DIR, email), { recursive: true });
-
-  const mailOptions = {
-    from: process.env.EMAIL_USER,
-    to: email,
-    subject: 'Welcome to Sortir!',
-    text: 'Thanks for signing up. Your account is ready.'
-  };
-
-  transporter.sendMail(mailOptions);
-  res.redirect('/login.html');
+  const hashed = await bcrypt.hash(password, 10);
+  users[email] = { password: hashed, files: [] };
+  saveUsers(users);
+  req.session.user = email;
+  res.redirect('/dashboard.html');
 });
 
+// ✅ Route: Login
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
-  const user = users[email];
-  if (!user) return res.status(401).send('Invalid email or password.');
+  const users = loadUsers();
 
-  const match = await bcrypt.compare(password, user.passwordHash);
-  if (!match) return res.status(401).send('Invalid email or password.');
+  if (!users[email]) return res.status(400).send('Invalid email or password.');
+  const valid = await bcrypt.compare(password, users[email].password);
+  if (!valid) return res.status(401).send('Invalid email or password.');
 
   req.session.user = email;
   res.redirect('/dashboard.html');
 });
 
+// ✅ Route: Logout
 app.get('/logout', (req, res) => {
   req.session.destroy(() => {
-    res.redirect('/login.html');
+    res.redirect('/');
   });
 });
 
-app.post('/forgot-password', (req, res) => {
+// ✅ Route: Upload
+app.post('/upload', async (req, res) => {
+  if (!req.session.user) return res.status(401).send('Unauthorized');
+  if (!req.files || !req.files.file) return res.status(400).send('No file uploaded.');
+
+  const user = req.session.user;
+  const users = loadUsers();
+  const file = req.files.file;
+  const userDir = path.join(uploadDir, user);
+  if (!fs.existsSync(userDir)) fs.mkdirSync(userDir, { recursive: true });
+
+  const filePath = path.join(userDir, file.name);
+  await file.mv(filePath);
+
+  users[user].files.push({ name: file.name, path: filePath });
+  saveUsers(users);
+
+  res.redirect('/dashboard.html');
+});
+
+// ✅ Route: Ask
+app.post('/ask', async (req, res) => {
+  if (!req.session.user) return res.status(401).send('Unauthorized');
+  const { question } = req.body;
+  const user = req.session.user;
+  const users = loadUsers();
+  const files = users[user].files;
+
+  let fullText = '';
+  for (const f of files) {
+    const data = fs.readFileSync(f.path);
+    const parsed = await pdfParse(data);
+    fullText += parsed.text + '\n';
+  }
+
+  const prompt = `Answer the question using the following documents:\n\n${fullText}\n\nQuestion: ${question}`;
+
+  const completion = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'gpt-4',
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+
+  const data = await completion.json();
+  const answer = data.choices?.[0]?.message?.content || 'No response';
+
+  res.send(answer);
+});
+
+// ✅ Route: Forgot password
+app.post('/forgot-password', async (req, res) => {
   const { email } = req.body;
-  const user = users[email];
-  if (!user) return res.status(404).send('Email not found.');
+  const users = loadUsers();
+  if (!users[email]) return res.status(400).send('No account with that email.');
 
-  const token = crypto.randomBytes(20).toString('hex');
+  const token = uuidv4();
   users[email].resetToken = token;
-  users[email].resetTokenExpiry = Date.now() + 3600000; // 1 hr
-  saveUsers();
+  users[email].resetExpires = Date.now() + 3600000; // 1 hour
+  saveUsers(users);
 
-  const resetLink = `${req.protocol}://${req.get('host')}/reset-password.html?token=${token}&email=${email}`;
-  transporter.sendMail({
-    from: process.env.EMAIL_USER,
-    to: email,
-    subject: 'Reset your password',
-    text: `Click to reset: ${resetLink}`
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
   });
 
-  res.send('Password reset link sent.');
+  const resetLink = `https://${req.headers.host}/reset-password.html?token=${token}&email=${email}`;
+
+  await transporter.sendMail({
+    to: email,
+    subject: 'Password Reset for Sortir',
+    html: `<p>Click <a href="${resetLink}">here</a> to reset your password. This link is valid for 1 hour.</p>`,
+  });
+
+  res.send('Check your email for a reset link.');
 });
 
+// ✅ Route: Reset password
 app.post('/reset-password', async (req, res) => {
-  const { email, token, password } = req.body;
-  const user = users[email];
-  if (!user || user.resetToken !== token || Date.now() > user.resetTokenExpiry) {
+  const { email, token, newPassword } = req.body;
+  const users = loadUsers();
+
+  if (
+    !users[email] ||
+    users[email].resetToken !== token ||
+    Date.now() > users[email].resetExpires
+  ) {
     return res.status(400).send('Invalid or expired token.');
   }
 
-  const hash = await bcrypt.hash(password, 10);
-  users[email].passwordHash = hash;
+  users[email].password = await bcrypt.hash(newPassword, 10);
   delete users[email].resetToken;
-  delete users[email].resetTokenExpiry;
-  saveUsers();
+  delete users[email].resetExpires;
+  saveUsers(users);
 
-  res.send('Password has been reset.');
+  res.send('Password reset successful. You can now log in.');
 });
 
-app.post('/upload', (req, res) => {
-  if (!req.session.user) return res.status(401).send('Login required.');
-  if (!req.files || !req.files.file) return res.status(400).send('No file uploaded.');
-
-  const userDir = path.join(UPLOADS_DIR, req.session.user);
-  fs.mkdirSync(userDir, { recursive: true });
-
-  const filePath = path.join(userDir, req.files.file.name);
-  req.files.file.mv(filePath, err => {
-    if (err) return res.status(500).send('Upload failed.');
-    res.send('File uploaded successfully.');
-  });
-});
-
-app.get('/list-files', (req, res) => {
-  if (!req.session.user) return res.status(401).send('Login required.');
-
-  const userDir = path.join(UPLOADS_DIR, req.session.user);
-  if (!fs.existsSync(userDir)) return res.json([]);
-
-  const files = fs.readdirSync(userDir);
-  res.json(files);
-});
-
+// ✅ Start server
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`✅ Sortir app running on http://localhost:${PORT}`);
 });
