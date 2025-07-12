@@ -1,36 +1,21 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <title>Your Vault - Sortir</title>
-  <link rel="stylesheet" href="style.css" />
+  <meta charset="UTF-8">
+  <title>Your Vault</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="logo">
-    <img src="sortir-logo.png" alt="Sortir Logo" />
-  </div>
-
-  <div class="form-container">
-    <h2>Your Vault</h2>
-    <p>Welcome to your secure document vault. You are now logged in.</p>
-
-    <form id="upload-form" enctype="multipart/form-data">
-      <input type="file" name="file" />
-      <button type="submit">Upload</button>
-    </form>
-
-    <div id="file-list"></div>
-
-    <button onclick="logout()">Log Out</button>
-  </div>
-
-  <script>
-    async function logout() {
-      await fetch('/logout');
-      window.location.href = '/';
-    }
-
-    // Optional: add upload and list file functionality here
-  </script>
+  <img src="sortir-logo.png" alt="Sortir Logo" class="logo">
+  <h2>Your Vault</h2>
+  <form action="/upload" method="POST" enctype="multipart/form-data">
+    <input type="file" name="file" required>
+    <button type="submit">Upload</button>
+  </form>
+  <ul id="fileList"></ul>
+  <form action="/logout" method="GET">
+    <button type="submit">Log Out</button>
+  </form>
+  <script src="vault.js"></script>
 </body>
 </html>
