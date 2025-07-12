@@ -1,28 +1,45 @@
 const express = require('express');
 const session = require('express-session');
-const fileUpload = require('express-fileupload');
+const bodyParser = require('body-parser');
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
 const nodemailer = require('nodemailer');
+const crypto = require('crypto');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.static('public'));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(fileUpload());
-app.use(session({
-  secret: 'sortir-secret',
-  resave: false,
-  saveUninitialized: true
-}));
-
 const USERS_FILE = 'users.json';
-if (!fs.existsSync(USERS_FILE)) fs.writeFileSync(USERS_FILE, '[]');
 
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.static('public'));
+
+app.use(
+  session({
+    secret: 'sortirSecret',
+    resave: false,
+    saveUninitialized: true,
+  })
+);
+
+// Load users
+function loadUsers() {
+  try {
+    const data = fs.readFileSync(USERS_FILE, 'utf-8');
+    return JSON.parse(data);
+  } catch {
+    return {};
+  }
+}
+
+// Save users
+function saveUsers(users) {
+  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
+}
+
+// Email transporter
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -31,90 +48,79 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-function readUsers() {
-  return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
-}
-
-function writeUsers(users) {
-  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
-}
-
-function getUserFolder(email) {
-  return path.join(__dirname, 'uploads', email.replace(/[^a-zA-Z0-9]/g, '_'));
-}
-
+// Signup
 app.post('/signup', (req, res) => {
   const { email, password } = req.body;
-  const users = readUsers();
-  if (users.find(user => user.email === email)) {
-    return res.status(409).json({ success: false, message: 'Email already exists' });
-  }
-  users.push({ email, password });
-  writeUsers(users);
-  const userFolder = getUserFolder(email);
-  fs.mkdirSync(userFolder, { recursive: true });
+  const users = loadUsers();
+  if (users[email]) return res.status(400).send('Email already registered.');
+
+  users[email] = { password };
+  saveUsers(users);
   req.session.user = email;
-  res.json({ success: true });
+  res.sendStatus(200);
 });
 
+// Login
 app.post('/login', (req, res) => {
   const { email, password } = req.body;
-  const users = readUsers();
-  const user = users.find(u => u.email === email && u.password === password);
-  if (user) {
+  const users = loadUsers();
+  if (users[email]?.password === password) {
     req.session.user = email;
-    res.json({ success: true });
+    res.sendStatus(200);
   } else {
-    res.status(401).json({ success: false, message: 'Invalid credentials' });
+    res.status(401).send('Invalid credentials');
   }
 });
 
-const resetTokens = {};
-
+// Forgot Password
 app.post('/forgot-password', (req, res) => {
   const { email } = req.body;
-  const users = readUsers();
-  const user = users.find(u => u.email === email);
-  if (!user) return res.status(404).json({ success: false, message: 'Email not found' });
+  const users = loadUsers();
+  if (!users[email]) return res.status(404).send('Email not found');
 
   const token = crypto.randomBytes(20).toString('hex');
-  resetTokens[token] = email;
+  users[email].resetToken = token;
+  saveUsers(users);
 
-  const resetLink = `https://${req.headers.host}/reset-password.html?token=${token}`;
+  const resetLink = `https://${req.headers.host}/reset-password.html?token=${token}&email=${email}`;
 
   const mailOptions = {
-    from: 'appsortir@gmail.com',
+    from: process.env.EMAIL_USER,
     to: email,
     subject: 'Sortir Password Reset',
-    text: `Click to reset your password: ${resetLink}`
+    text: `Click the link to reset your password: ${resetLink}`,
   };
 
-  transporter.sendMail(mailOptions, (err, info) => {
+  transporter.sendMail(mailOptions, err => {
     if (err) {
-      console.error(err);
-      return res.status(500).json({ success: false, message: 'Failed to send email' });
+      console.error('Email error:', err);
+      res.status(500).send('Failed to send reset link.');
+    } else {
+      res.sendStatus(200);
     }
-    res.json({ success: true });
   });
 });
 
+// Reset password
 app.post('/reset-password', (req, res) => {
-  const { token, newPassword } = req.body;
-  const email = resetTokens[token];
-  if (!email) return res.status(400).json({ success: false, message: 'Invalid or expired token' });
+  const { email, token, newPassword } = req.body;
+  const users = loadUsers();
 
-  const users = readUsers();
-  const user = users.find(u => u.email === email);
-  if (user) {
-    user.password = newPassword;
-    writeUsers(users);
-    delete resetTokens[token];
-    res.json({ success: true });
+  if (users[email]?.resetToken === token) {
+    users[email].password = newPassword;
+    delete users[email].resetToken;
+    saveUsers(users);
+    res.sendStatus(200);
   } else {
-    res.status(404).json({ success: false, message: 'User not found' });
+    res.status(400).send('Invalid or expired token');
   }
 });
 
+// Logout
+app.get('/logout', (req, res) => {
+  req.session.destroy(() => res.redirect('/'));
+});
+
 app.listen(PORT, () => {
-  console.log(`Sortir server running on port ${PORT}`);
+  console.log(`Sortir app running at http://localhost:${PORT}`);
 });
