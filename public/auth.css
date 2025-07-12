@@ -1,51 +1,68 @@
 body {
-  background: #0e0e0e;
-  color: white;
-  font-family: sans-serif;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
   margin: 0;
+  padding: 0;
+  background: #0d0d0d;
+  font-family: 'Segoe UI', sans-serif;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
-.auth-container {
-  background: #1e1e1e;
-  padding: 2rem;
-  border-radius: 8px;
-  text-align: center;
-  width: 300px;
+.logo {
+  width: 120px;
+  margin: 40px 0 10px;
 }
 
-.auth-container .logo {
-  width: 80px;
-  margin-bottom: 20px;
-}
-
-.auth-container input,
-.auth-container button {
+.container {
   width: 100%;
-  padding: 0.5rem;
-  margin: 8px 0;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.form-box {
+  background: #1a1a1a;
+  padding: 30px;
+  border-radius: 8px;
+  width: 100%;
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.1);
+}
+
+input {
+  width: 100%;
+  padding: 10px;
+  margin: 12px 0;
+  background: #2c2c2c;
   border: none;
-  border-radius: 4px;
-}
-
-.auth-container input {
-  background: #2e2e2e;
+  border-radius: 5px;
   color: white;
 }
 
-.auth-container button {
-  background: teal;
-  color: white;
+button {
+  width: 100%;
+  padding: 10px;
+  background: #00ffff;
+  border: none;
+  color: black;
   font-weight: bold;
+  border-radius: 5px;
   cursor: pointer;
+  margin-top: 10px;
 }
 
-.switch-link {
-  display: block;
-  margin-top: 10px;
-  color: #00bcd4;
+button:hover {
+  background: #00d9d9;
+}
+
+.links {
+  margin-top: 15px;
+  text-align: center;
+}
+
+.links a {
+  color: #00cccc;
   text-decoration: none;
+  font-size: 0.9rem;
 }
