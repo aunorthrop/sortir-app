@@ -1,68 +1,44 @@
-document.addEventListener("DOMContentLoaded", () => {
-  const signupForm = document.getElementById("signupForm");
-  const loginForm = document.getElementById("loginForm");
-  const forgotLink = document.getElementById("forgotLink");
-  const authError = document.getElementById("authError");
-  const authSection = document.getElementById("authSection");
-  const mainApp = document.getElementById("mainApp");
-
-  function showError(message) {
-    authError.textContent = message;
+async function signup() {
+  const email = document.getElementById("signup-email").value;
+  const password = document.getElementById("signup-password").value;
+  const res = await fetch('/signup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password })
+  });
+  if (res.ok) {
+    location.reload();
+  } else {
+    alert(await res.text());
   }
+}
 
-  async function handleAuth(endpoint, email, password) {
-    try {
-      const res = await fetch(`/${endpoint}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password })
-      });
-      if (!res.ok) {
-        const error = await res.text();
-        showError(error);
-      } else {
-        authSection.style.display = "none";
-        mainApp.style.display = "block";
-      }
-    } catch (err) {
-      showError("Server error. Please try again.");
-    }
+async function login() {
+  const email = document.getElementById("login-email").value;
+  const password = document.getElementById("login-password").value;
+  const res = await fetch('/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password })
+  });
+  if (res.ok) {
+    location.href = '/vault.html';
+  } else {
+    document.getElementById('login-error').innerText = 'Incorrect email or password.';
   }
+}
 
-  if (signupForm) {
-    signupForm.addEventListener("submit", e => {
-      e.preventDefault();
-      const email = document.getElementById("signupEmail").value;
-      const password = document.getElementById("signupPassword").value;
-      handleAuth("signup", email, password);
-    });
+async function forgotPassword() {
+  const email = document.getElementById("login-email").value;
+  if (!email) return alert("Enter your email above first.");
+  const res = await fetch('/forgot-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email })
+  });
+  if (res.ok) {
+    alert("Reset link sent.");
+  } else {
+    alert(await res.text());
   }
-
-  if (loginForm) {
-    loginForm.addEventListener("submit", e => {
-      e.preventDefault();
-      const email = document.getElementById("loginEmail").value;
-      const password = document.getElementById("loginPassword").value;
-      handleAuth("login", email, password);
-    });
-  }
-
-  if (forgotLink) {
-    forgotLink.addEventListener("click", (e) => {
-      e.preventDefault();
-      const email = document.getElementById("loginEmail").value;
-      if (!email) return showError("Enter your email first.");
-      fetch("/forgot-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email })
-      }).then(res => {
-        if (res.ok) {
-          alert("Password reset link sent.");
-        } else {
-          showError("Failed to send reset link.");
-        }
-      }).catch(() => showError("Error sending request."));
-    });
-  }
-});
+}
