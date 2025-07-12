@@ -1,8 +1,8 @@
 body {
   margin: 0;
   padding: 0;
-  background-color: #0f0f0f;
-  font-family: sans-serif;
+  background: #0e0e0e;
+  font-family: 'Segoe UI', sans-serif;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -10,45 +10,46 @@ body {
   color: white;
 }
 
-.auth-container {
-  background: #1c1c1c;
+.container {
+  background: #1a1a1a;
   padding: 2rem;
   border-radius: 8px;
+  width: 340px;
   box-shadow: 0 0 12px rgba(0,255,255,0.1);
-  width: 320px;
   text-align: center;
 }
 
 .logo {
-  width: 100px;
+  width: 90px;
   margin-bottom: 20px;
 }
 
-input {
+.auth-form input {
   width: 100%;
   padding: 10px;
-  margin: 10px 0;
+  margin: 12px 0;
   background: #2a2a2a;
   border: none;
   border-radius: 4px;
   color: white;
 }
 
-button {
+.auth-form button {
   width: 100%;
   padding: 10px;
   margin-top: 10px;
   background: #00ffff;
   color: black;
   border: none;
-  border-radius: 4px;
   font-weight: bold;
+  border-radius: 4px;
   cursor: pointer;
 }
 
 .switch-link {
   display: block;
   margin-top: 10px;
+  font-size: 0.9rem;
   color: #00bcd4;
   text-decoration: none;
 }
