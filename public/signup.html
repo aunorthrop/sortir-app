@@ -3,41 +3,28 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Sign Up</title>
-  <link rel="stylesheet" href="style.css" />
+  <title>Sign Up – Sortir</title>
+  <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
   <div class="auth-wrapper">
     <div class="logo-container">
-      <img src="sortir-logo.png" alt="Sortir Logo" style="max-width: 220px;" />
+      <img src="/sortir-logo.png" alt="Sortir Logo" />
     </div>
-
     <div class="form-container">
-      <h2>Create Account</h2>
-      <form id="signup-form" action="/signup" method="POST">
+      <h2>Sign Up</h2>
+      <form action="/signup" method="POST">
         <input type="email" name="email" placeholder="Email" required />
         <input type="password" name="password" placeholder="Password" required />
         <button type="submit">Sign Up</button>
       </form>
-
       <div class="form-link">
-        <a href="/login.html">Already have an account? Log in</a>
+        <a href="/login">Already have an account? Log in</a>
       </div>
-
-      <!-- Error message box -->
-      <div id="signup-error" class="error-message" style="display: none;"></div>
+      <% if (error) { %>
+        <div class="error-message visible"><%= error %></div>
+      <% } %>
     </div>
   </div>
-
-  <script>
-    // Optional: display error from query string (e.g., ?error=Email%20already%20exists)
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.has('error')) {
-      const msg = decodeURIComponent(urlParams.get('error'));
-      const errBox = document.getElementById('signup-error');
-      errBox.innerText = msg;
-      errBox.style.display = 'block';
-    }
-  </script>
 </body>
 </html>
