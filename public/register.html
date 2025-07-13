@@ -1,1 +1,19 @@
-
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Register - Sortir Vault</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="auth-container">
+    <h2>Create Account</h2>
+    <form action="/register" method="POST">
+      <input type="text" name="name" placeholder="Your Name" required />
+      <input type="email" name="email" placeholder="Email" required />
+      <input type="password" name="password" placeholder="Password" required />
+      <button type="submit">Sign Up</button>
+    </form>
+    <a class="switch-link" href="/login">Already have an account? Login</a>
+  </div>
+</body>
+</html>
