@@ -1,153 +1,280 @@
 const express = require("express");
-const session = require("express-session");
+const multer = require("multer");
 const fs = require("fs");
 const path = require("path");
-const crypto = require("crypto");
-const nodemailer = require("nodemailer");
+const pdfParse = require("pdf-parse");
+const cors = require("cors");
 require("dotenv").config();
+const { OpenAI } = require("openai");
+const bcrypt = require("bcrypt");
+const session = require("express-session");
+const nodemailer = require("nodemailer");
+const crypto = require("crypto");
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-const DATA_DIR = path.join(__dirname, "data");
-const USER_DATA_FILE = path.join(DATA_DIR, "users.json");
+const port = process.env.PORT || 3000;
 
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR);
-if (!fs.existsSync(USER_DATA_FILE)) fs.writeFileSync(USER_DATA_FILE, "{}");
+// Path for user data on Render's persistent disk
+const userDir = "/var/data/users";
+const userFilePath = path.join(userDir, "users.json");
 
-app.use(express.static("public"));
+// Ensure the directory for user data exists
+if (!fs.existsSync(userDir)) {
+  fs.mkdirSync(userDir, { recursive: true });
+}
+
+const upload = multer({ dest: "uploads/" });
+app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.static("public"));
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+// Session middleware
 app.use(
   session({
-    secret: "sortir_secret_key",
+    secret: process.env.SESSION_SECRET, // Make sure to set this in your .env file
     resave: false,
-    saveUninitialized: false,
+    saveUninitialized: true,
+    cookie: { secure: process.env.NODE_ENV === "production" }, // Use secure cookies in production
   })
 );
 
-// Load user data
-function loadUsers() {
-  return JSON.parse(fs.readFileSync(USER_DATA_FILE, "utf8"));
-}
+// Middleware to protect routes
+const isAuthenticated = (req, res, next) => {
+  if (req.session.user) {
+    next();
+  } else {
+    res.status(401).redirect("/login.html");
+  }
+};
 
-function saveUsers(users) {
-  fs.writeFileSync(USER_DATA_FILE, JSON.stringify(users, null, 2));
-}
-
-// Redirect root to login if not authenticated
-app.get("/", (req, res) => {
-  if (!req.session.email) return res.redirect("/login.html");
-  res.sendFile(path.join(__dirname, "public", "index.html"));
+// Nodemailer transporter for sending emails
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_APP_PASSWORD,
+  },
 });
 
-// Signup route
-app.post("/signup", (req, res) => {
+// Helper function to read users from the file
+const readUsers = () => {
+  try {
+    if (fs.existsSync(userFilePath)) {
+      const usersJson = fs.readFileSync(userFilePath);
+      return JSON.parse(usersJson);
+    }
+  } catch (error) {
+    console.error("Error reading users file:", error);
+  }
+  return [];
+};
+
+// Helper function to write users to the file
+const writeUsers = (users) => {
+  try {
+    fs.writeFileSync(userFilePath, JSON.stringify(users, null, 2));
+  } catch (error) {
+    console.error("Error writing to users file:", error);
+  }
+};
+
+// --- Authentication Routes ---
+
+app.post("/signup", async (req, res) => {
   const { email, password } = req.body;
-  const users = loadUsers();
-  if (users[email]) return res.status(400).send("Email already exists");
-  users[email] = { password, files: [] };
-  saveUsers(users);
-  req.session.email = email;
-  res.redirect("/");
+  const users = readUsers();
+
+  if (users.find((user) => user.email === email)) {
+    return res.status(400).json({ message: "User already exists." });
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+  const newUser = { id: Date.now().toString(), email, password: hashedPassword };
+  users.push(newUser);
+  writeUsers(users);
+
+  res.status(201).json({ message: "User created successfully. Please login." });
 });
 
-// Login route
-app.post("/login", (req, res) => {
+app.post("/login", async (req, res) => {
   const { email, password } = req.body;
-  const users = loadUsers();
-  if (!users[email] || users[email].password !== password)
-    return res.status(401).send("Invalid credentials");
-  req.session.email = email;
-  res.redirect("/");
+  const users = readUsers();
+  const user = users.find((user) => user.email === email);
+
+  if (user && (await bcrypt.compare(password, user.password))) {
+    req.session.user = { id: user.id, email: user.email };
+    res.json({ message: "Logged in successfully." });
+  } else {
+    res.status(401).json({ message: "Invalid email or password." });
+  }
 });
 
-// Logout route
 app.get("/logout", (req, res) => {
-  req.session.destroy(() => res.redirect("/login.html"));
+  req.session.destroy((err) => {
+    if (err) {
+      return res.status(500).json({ message: "Could not log out." });
+    }
+    res.redirect("/login.html");
+  });
 });
 
-// Upload route
-app.post("/upload", (req, res) => {
-  const { filename, content } = req.body;
-  const email = req.session.email;
-  if (!email) return res.status(401).send("Unauthorized");
-
-  const userDir = path.join(DATA_DIR, email);
-  if (!fs.existsSync(userDir)) fs.mkdirSync(userDir);
-
-  const filePath = path.join(userDir, filename);
-  fs.writeFileSync(filePath, content, "base64");
-
-  const users = loadUsers();
-  users[email].files.push(filename);
-  saveUsers(users);
-  res.sendStatus(200);
-});
-
-// Ask route (placeholder for your PDF query logic)
-app.post("/ask", (req, res) => {
-  const email = req.session.email;
-  if (!email) return res.status(401).send("Unauthorized");
-  res.send("Answer generated from documents.");
-});
-
-// Delete file
-app.post("/delete", (req, res) => {
-  const email = req.session.email;
-  const { filename } = req.body;
-  const userDir = path.join(DATA_DIR, email);
-  const filePath = path.join(userDir, filename);
-  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-
-  const users = loadUsers();
-  users[email].files = users[email].files.filter((f) => f !== filename);
-  saveUsers(users);
-  res.sendStatus(200);
-});
-
-// Forgot Password
 app.post("/forgot-password", (req, res) => {
   const { email } = req.body;
-  const users = loadUsers();
-  if (!users[email]) return res.status(404).send("User not found");
+  const users = readUsers();
+  const userIndex = users.findIndex((user) => user.email === email);
 
-  const token = crypto.randomBytes(32).toString("hex");
-  users[email].resetToken = token;
-  saveUsers(users);
+  if (userIndex === -1) {
+    return res.status(404).json({ message: "User not found." });
+  }
 
-  const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: "appsortir@gmail.com",
-      pass: process.env.GMAIL_PASSWORD,
-    },
-  });
+  const token = crypto.randomBytes(20).toString("hex");
+  const resetPasswordExpires = Date.now() + 3600000; // 1 hour
 
-  const resetUrl = `https://${req.headers.host}/reset-password.html?token=${token}&email=${email}`;
+  users[userIndex].resetPasswordToken = token;
+  users[userIndex].resetPasswordExpires = resetPasswordExpires;
+  writeUsers(users);
+
   const mailOptions = {
-    from: "Sortir App <appsortir@gmail.com>",
     to: email,
-    subject: "Password Reset",
-    html: `<p>Click to reset: <a href="${resetUrl}">Reset Password</a></p>`,
+    from: process.env.GMAIL_USER,
+    subject: "Sortir Vault Password Reset",
+    text: `You are receiving this because you (or someone else) have requested the reset of the password for your account.\n\n
+           Please click on the following link, or paste this into your browser to complete the process:\n\n
+           http://${req.headers.host}/reset-password/${token}\n\n
+           If you did not request this, please ignore this email and your password will remain unchanged.\n`,
   };
 
   transporter.sendMail(mailOptions, (err) => {
-    if (err) return res.status(500).send("Failed to send reset email");
-    res.send("Password reset email sent");
+    if (err) {
+      console.error("Error sending email:", err);
+      return res.status(500).json({ message: "Error sending email." });
+    }
+    res.json({ message: `An e-mail has been sent to ${email} with further instructions.` });
   });
 });
 
-// Reset Password
-app.post("/reset-password", (req, res) => {
-  const { email, token, newPassword } = req.body;
-  const users = loadUsers();
-  if (!users[email] || users[email].resetToken !== token)
-    return res.status(400).send("Invalid reset attempt");
+app.get('/reset-password/:token', (req, res) => {
+    const { token } = req.params;
+    const users = readUsers();
+    const user = users.find(u => u.resetPasswordToken === token && u.resetPasswordExpires > Date.now());
 
-  users[email].password = newPassword;
-  delete users[email].resetToken;
-  saveUsers(users);
-  res.send("Password updated");
+    if (!user) {
+        return res.status(400).send('Password reset token is invalid or has expired.');
+    }
+
+    res.sendFile(path.join(__dirname, 'public', 'reset-password.html'));
 });
 
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+app.post('/reset-password/:token', async (req, res) => {
+    const { token } = req.params;
+    const { password } = req.body;
+    const users = readUsers();
+    const userIndex = users.findIndex(u => u.resetPasswordToken === token && u.resetPasswordExpires > Date.now());
+
+    if (userIndex === -1) {
+        return res.status(400).json({ message: 'Password reset token is invalid or has expired.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    users[userIndex].password = hashedPassword;
+    users[userIndex].resetPasswordToken = undefined;
+    users[userIndex].resetPasswordExpires = undefined;
+
+    writeUsers(users);
+
+    res.json({ message: 'Password has been reset successfully.' });
+});
+
+// --- Existing Application Routes (now protected) ---
+app.get("/index.html", isAuthenticated, (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+app.post("/upload", isAuthenticated, upload.single("file"), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+
+  const fileExt = path.extname(req.file.originalname).toLowerCase();
+  if (fileExt !== ".pdf") {
+    fs.unlinkSync(req.file.path);
+    return res.status(400).json({ error: "Only PDF files are supported" });
+  }
+
+  const destPath = path.join(__dirname, "uploads", req.file.originalname);
+  fs.rename(req.file.path, destPath, (err) => {
+    if (err) return res.status(500).json({ error: "Failed to save file" });
+    return res.json({ success: true });
+  });
+});
+
+app.get("/files", isAuthenticated, (req, res) => {
+  const dirPath = path.join(__dirname, "uploads");
+  fs.readdir(dirPath, (err, files) => {
+    if (err) return res.status(500).json({ error: "Unable to list files" });
+    res.json(files);
+  });
+});
+
+app.delete("/delete/:filename", isAuthenticated, (req, res) => {
+  const filePath = path.join(__dirname, "uploads", req.params.filename);
+  fs.unlink(filePath, (err) => {
+    if (err) return res.status(500).json({ success: false });
+    res.json({ success: true });
+  });
+});
+
+app.post("/ask", isAuthenticated, async (req, res) => {
+  const question = req.body.question;
+  if (!question) return res.status(400).json({ error: "No question provided" });
+
+  const files = fs.readdirSync(path.join(__dirname, "uploads"));
+  let fullText = "";
+
+  for (const file of files) {
+    const filePath = path.join(__dirname, "uploads", file);
+    const dataBuffer = fs.readFileSync(filePath);
+    try {
+      const data = await pdfParse(dataBuffer);
+      fullText += `\n\n--- Content from ${file} ---\n\n` + data.text;
+    } catch (err) {
+      console.error(`Failed to parse ${file}:`, err);
+    }
+  }
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4",
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a helpful assistant reading company documents to answer questions.",
+        },
+        { role: "user", content: `${question}\n\nDocuments:\n${fullText}` },
+      ],
+      temperature: 0.2,
+    });
+
+    res.json({ answer: completion.choices[0].message.content.trim() });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "OpenAI request failed" });
+  }
+});
+
+// Redirect root to login or index
+app.get("/", (req, res) => {
+  if (req.session.user) {
+    res.redirect("/index.html");
+  } else {
+    res.redirect("/login.html");
+  }
+});
+
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
+});
