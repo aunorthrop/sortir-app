@@ -9,9 +9,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function fetchFiles() {
     fetch("/files")
-      .then((res) => res.json())
-      .then((files) => displayFiles(files))
-      .catch((err) => console.error("Error fetching files:", err));
+      .then(res => res.json())
+      .then(files => displayFiles(files))
+      .catch(err => console.error("Error fetching files:", err));
   }
 
   function displayFiles(files) {
@@ -30,7 +30,7 @@ document.addEventListener("DOMContentLoaded", () => {
       deleteBtn.onclick = () => {
         fetch(`/delete/${file}`, { method: "DELETE" })
           .then(() => fetchFiles())
-          .catch((err) => console.error("Error deleting file:", err));
+          .catch(err => console.error("Error deleting file:", err));
       };
 
       item.appendChild(nameSpan);
