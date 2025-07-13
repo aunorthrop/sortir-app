@@ -1,6 +1,8 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Sortir Vault</title>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -9,21 +11,33 @@
     <img src="sortir-logo.png" alt="Sortir Logo" class="header-logo">
   </header>
 
-  <form id="uploadForm">
-    <label for="fileInput" class="custom-file-upload">Choose File</label>
-    <input type="file" id="fileInput" name="file" accept=".pdf" />
-    <button type="submit">Upload PDF</button>
-  </form>
+  <div class="auth-container">
+    <h2>Your Vault</h2>
 
-  <div id="fileListContainer"></div>
+    <!-- Upload PDF -->
+    <form id="uploadForm">
+      <label for="fileInput" class="custom-file-upload">Choose File</label>
+      <input type="file" id="fileInput" name="file" accept=".pdf" required />
+      <button type="submit">Upload PDF</button>
+    </form>
 
-  <form id="askForm">
-    <input type="text" id="questionInput" placeholder="Ask something..." />
-    <button type="submit">Ask Sortir</button>
-    <span id="loadingIndicator" class="loading-indicator" style="display: none;">Thinking . . .</span>
-  </form>
+    <!-- File List -->
+    <div id="fileListContainer"></div>
 
-  <div id="answerBox"></div>
+    <!-- Ask a Question -->
+    <form id="askForm">
+      <input type="text" id="questionInput" placeholder="Ask something..." required />
+      <button type="submit">Ask Sortir</button>
+      <span id="loadingIndicator" class="loading-indicator" style="display: none;">Thinking...</span>
+    </form>
+
+    <div id="answerBox"></div>
+
+    <!-- Logout -->
+    <form id="logoutForm" action="/logout?_method=DELETE" method="POST">
+      <button type="submit" style="margin-top: 20px;">Logout</button>
+    </form>
+  </div>
 
   <script src="script.js"></script>
 </body>
